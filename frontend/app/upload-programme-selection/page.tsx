@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageShell from "../components/PageShell";
 import GuidanceBox from "../components/GuidanceBox";
 import FilePickerIcon from "../components/FilePickerIcon";
 import { primaryButtonClass } from "../components/buttonStyles";
-import { distinctBy } from "../lib/format";
-import { MOCK_PROGRAMME_TITLES } from "../lib/mockData";
+import { getProgrammeTitles, uploadAlternatePath } from "../lib/api";
+import type { ProgrammeTitleChoice } from "../lib/types";
 
 function UploadProgrammeSelectionContent() {
   const router = useRouter();
@@ -15,25 +15,38 @@ function UploadProgrammeSelectionContent() {
   const qs = searchParams.toString();
   const instituteCode = searchParams.get("institute_code") ?? "";
 
+  const [choices, setChoices] = useState<ProgrammeTitleChoice[]>([]);
   const [selectedIndex, setSelectedIndex] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  // Distinct by nmc_aeiprogrammetitle, per the requested change - unlike the
-  // Revised Programme drop-down, this list is allowed (and expected) to show
-  // separate entries for the same programme's qualification-level variants,
-  // since their titles differ.
-  const choices = useMemo(
-    () => distinctBy(MOCK_PROGRAMME_TITLES[instituteCode] ?? [], (c) => c.nmc_aeiprogrammetitle),
-    [instituteCode]
-  );
+  // Backed by GET /api/programme-titles, which - unlike GET /api/programmes -
+  // does NOT collapse qualification-level variants: the same programme's
+  // Apprenticeship vs Full Time routes have different titles, and this
+  // drop-down must show both.
+  useEffect(() => {
+    if (!instituteCode) return;
+    getProgrammeTitles(instituteCode).then(setChoices);
+  }, [instituteCode]);
 
   const programmeSelected = selectedIndex !== "";
 
-  function handleUpload() {
+  async function handleUpload() {
     if (!programmeSelected || !file) return;
-    // Phase 5 will POST to /api/uploads/alternate-path here and route to the
-    // real returned batch id - Phase 4 has no backend wiring yet.
-    router.push(`/upload-result?batchId=1`);
+    const choice = choices[Number(selectedIndex)];
+    setUploading(true);
+    try {
+      const batch = await uploadAlternatePath({
+        instituteCode,
+        nmc_trainingtype: choice.nmc_trainingtype,
+        nmc_programme: choice.nmc_programme,
+        nmc_academicroute: choice.nmc_academicroute,
+        file,
+      });
+      router.push(`/upload-result?batchId=${batch.nmc_uploadbatchid}`);
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -89,10 +102,10 @@ function UploadProgrammeSelectionContent() {
         <button
           type="button"
           className={primaryButtonClass}
-          disabled={!programmeSelected || !file}
+          disabled={!programmeSelected || !file || uploading}
           onClick={handleUpload}
         >
-          Upload
+          {uploading ? "Uploading..." : "Upload"}
         </button>
       </div>
     </PageShell>

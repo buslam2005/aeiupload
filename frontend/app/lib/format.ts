@@ -4,6 +4,20 @@ export function instituteLabel(institute: { name: string; code: string }): strin
   return `${institute.name} - ${institute.code}`;
 }
 
+/** Upload Summary's "You are logged in as" / institute context comes from
+ * institute_code + institute_name query params. After an action (resubmit,
+ * bulk resubmit) navigates back there, this rebuilds that context from the
+ * affected record's own institute, so it reflects the record just acted on
+ * rather than resetting to "no institute selected". */
+export function uploadSummaryPath(
+  instituteCode: string | null | undefined,
+  instituteName: string | null | undefined
+): string {
+  if (!instituteCode || !instituteName) return "/upload-summary";
+  const params = new URLSearchParams({ institute_code: instituteCode, institute_name: instituteName });
+  return `/upload-summary?${params.toString()}`;
+}
+
 /** First-occurrence-wins de-duplication by a derived key, preserving order. */
 export function distinctBy<T>(items: T[], keyFn: (item: T) => string): T[] {
   const seen = new Set<string>();

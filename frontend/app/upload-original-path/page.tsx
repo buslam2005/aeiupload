@@ -1,34 +1,55 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageShell from "../components/PageShell";
 import GuidanceBox from "../components/GuidanceBox";
 import FilePickerIcon from "../components/FilePickerIcon";
 import { primaryButtonClass } from "../components/buttonStyles";
-import { MOCK_INSTITUTES, MOCK_PROGRAMMES } from "../lib/mockData";
+import { getInstitutes, getProgrammes, uploadOriginalPath } from "../lib/api";
+import type { Institute, ProgrammeChoice } from "../lib/types";
 
 function UploadOriginalPathContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const qs = searchParams.toString();
 
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
   const [instituteCode, setInstituteCode] = useState(searchParams.get("institute_code") ?? "");
+  const [choices, setChoices] = useState<ProgrammeChoice[]>([]);
   const [programme, setProgramme] = useState("");
   const [academicRoute, setAcademicRoute] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
-  const choices = useMemo(() => MOCK_PROGRAMMES[instituteCode] ?? [], [instituteCode]);
+  useEffect(() => {
+    getInstitutes().then(setInstitutes);
+  }, []);
+
+  useEffect(() => {
+    if (!instituteCode) return;
+    getProgrammes(instituteCode).then(setChoices);
+  }, [instituteCode]);
+
   const distinctRoutes = useMemo(
     () => Array.from(new Set(choices.map((c) => c.nmc_academicroute))),
     [choices]
   );
 
-  function handleUpload() {
-    if (!instituteCode || !programme || !file) return;
-    // Phase 5 will POST to /api/uploads/original-path here and route to the
-    // real returned batch id - Phase 4 has no backend wiring yet.
-    router.push(`/upload-result?batchId=2`);
+  async function handleUpload() {
+    if (!instituteCode || !file) return;
+    setUploading(true);
+    try {
+      const batch = await uploadOriginalPath({
+        instituteCode,
+        nmc_programme: programme || undefined,
+        nmc_academicroute: academicRoute || undefined,
+        file,
+      });
+      router.push(`/upload-result?batchId=${batch.nmc_uploadbatchid}`);
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -52,6 +73,7 @@ function UploadOriginalPathContent() {
             value={instituteCode}
             onChange={(e) => {
               setInstituteCode(e.target.value);
+              setChoices([]);
               setProgramme("");
               setAcademicRoute("");
               setFile(null);
@@ -60,7 +82,7 @@ function UploadOriginalPathContent() {
             <option value="" disabled>
               Select
             </option>
-            {MOCK_INSTITUTES.map((institute) => (
+            {institutes.map((institute) => (
               <option key={institute.code} value={institute.code}>
                 {institute.code}
               </option>
@@ -114,7 +136,7 @@ function UploadOriginalPathContent() {
 
       <div className="mb-6">
         <span className="mb-2 block font-medium">Select a student qualifications file to upload</span>
-        <FilePickerIcon id="file" disabled={!programme} file={file} onChange={setFile} />
+        <FilePickerIcon id="file" disabled={!instituteCode} file={file} onChange={setFile} />
       </div>
 
       <div className="flex gap-3">
@@ -128,10 +150,10 @@ function UploadOriginalPathContent() {
         <button
           type="button"
           className={primaryButtonClass}
-          disabled={!instituteCode || !programme || !file}
+          disabled={!instituteCode || !file || uploading}
           onClick={handleUpload}
         >
-          Upload
+          {uploading ? "Uploading..." : "Upload"}
         </button>
       </div>
     </PageShell>

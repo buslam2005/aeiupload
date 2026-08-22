@@ -9,6 +9,7 @@ import {
   rowProgrammeLabel,
   toBritishDateTime,
   toIsoDate,
+  uploadSummaryPath,
 } from "./format";
 import type { UploadStudent } from "./types";
 
@@ -50,9 +51,24 @@ function makeRow(overrides: Partial<UploadStudent> = {}): UploadStudent {
     nmc_error4description: null,
     nmc_error5description: null,
     nmc_programmename: "Pre-registration nursing - Child",
+    institute_name: "University of Chester",
     ...overrides,
   };
 }
+
+describe("uploadSummaryPath", () => {
+  it("builds an institute-scoped Upload Summary URL when both code and name are known", () => {
+    expect(uploadSummaryPath("1315", "University of Chester")).toBe(
+      "/upload-summary?institute_code=1315&institute_name=University+of+Chester"
+    );
+  });
+
+  it("falls back to the bare path when the institute is missing or unresolved", () => {
+    expect(uploadSummaryPath(null, null)).toBe("/upload-summary");
+    expect(uploadSummaryPath("1315", null)).toBe("/upload-summary");
+    expect(uploadSummaryPath(undefined, undefined)).toBe("/upload-summary");
+  });
+});
 
 describe("instituteLabel", () => {
   it("concatenates name, hyphen, code", () => {

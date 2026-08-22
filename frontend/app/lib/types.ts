@@ -67,6 +67,7 @@ export interface UploadStudent {
   nmc_error5description: string | null;
 
   nmc_programmename: string | null;
+  institute_name: string | null;
 }
 
 export interface BatchSummary {

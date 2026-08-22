@@ -1,18 +1,39 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PageShell from "../components/PageShell";
 import ErrorRecordsSubgrid from "../components/ErrorRecordsSubgrid";
 import { primaryButtonClass } from "../components/buttonStyles";
-import { nameLabel, toBritishDateTime } from "../lib/format";
-import { MOCK_BATCH_DETAILS, MOCK_PROGRAMMES } from "../lib/mockData";
+import { nameLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
+import { getBatch, getProgrammes } from "../lib/api";
+import type { BatchDetail, ProgrammeChoice } from "../lib/types";
 
 function UploadResultContent() {
   const searchParams = useSearchParams();
   const batchId = Number(searchParams.get("batchId"));
-  const batch = MOCK_BATCH_DETAILS[batchId];
+
+  const [batch, setBatch] = useState<BatchDetail | null | undefined>(undefined);
+  const [programmeChoices, setProgrammeChoices] = useState<ProgrammeChoice[]>([]);
+
+  useEffect(() => {
+    getBatch(batchId)
+      .then((data) => {
+        setBatch(data);
+        return getProgrammes(data.nmc_institutecode);
+      })
+      .then((choices) => choices && setProgrammeChoices(choices))
+      .catch(() => setBatch(null));
+  }, [batchId]);
+
+  if (batch === undefined) {
+    return (
+      <PageShell>
+        <p>Loading...</p>
+      </PageShell>
+    );
+  }
 
   if (!batch) {
     return (
@@ -25,11 +46,12 @@ function UploadResultContent() {
     );
   }
 
-  const programmeChoices = MOCK_PROGRAMMES[batch.nmc_institutecode] ?? [];
-
   return (
     <PageShell>
-      <Link href="/upload-summary" className={`${primaryButtonClass} mb-6 inline-flex`}>
+      <Link
+        href={uploadSummaryPath(batch.nmc_institutecode, batch.institute_name)}
+        className={`${primaryButtonClass} mb-6 inline-flex`}
+      >
         Back to Upload Summary
       </Link>
 
@@ -107,7 +129,12 @@ function UploadResultContent() {
         </table>
       </div>
 
-      <ErrorRecordsSubgrid initialRows={batch.error_records} programmeChoices={programmeChoices} />
+      <ErrorRecordsSubgrid
+        initialRows={batch.error_records}
+        programmeChoices={programmeChoices}
+        instituteCode={batch.nmc_institutecode}
+        instituteName={batch.institute_name}
+      />
     </PageShell>
   );
 }

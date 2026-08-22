@@ -1,17 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PageShell from "./components/PageShell";
 import { primaryButtonClass } from "./components/buttonStyles";
 import { instituteLabel } from "./lib/format";
-import { MOCK_INSTITUTES } from "./lib/mockData";
+import { getInstitutes } from "./lib/api";
+import type { Institute } from "./lib/types";
 
 export default function FirstPage() {
   const router = useRouter();
+  const [institutes, setInstitutes] = useState<Institute[]>([]);
   const [selectedCode, setSelectedCode] = useState("");
 
-  const institutes = [...MOCK_INSTITUTES].sort((a, b) => a.name.localeCompare(b.name));
+  useEffect(() => {
+    getInstitutes().then((data) =>
+      setInstitutes([...data].sort((a, b) => a.name.localeCompare(b.name)))
+    );
+  }, []);
 
   function handleContinue() {
     const institute = institutes.find((i) => i.code === selectedCode);
