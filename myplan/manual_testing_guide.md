@@ -97,48 +97,116 @@ unchanged - the backend no longer reads from `requirement_doc/` at runtime).
 
 ## Phase 3 - Backend Logic Development
 
-Use `curl` (or a REST client) against `http://localhost:8008/api/...` - adjust
-paths to whatever the implementation names them.
+Run the full app per section 1 (`uv run uvicorn app.main:app --port 8008`), then
+use `curl` against `http://localhost:8008/api/...`. All examples below use real
+seed data: `16H0404E` (ROSE 1 LEE) and `16H0405E` (ROSE 2 LEE) are both genuinely
+enrolled on institute `1315` / training type `R` / programme `SC1` / academic route
+`B Nurs (Hons)` in `master_students.csv`.
 
-1. **Lookups**
-   - Institutes endpoint returns a distinct list; cross-check the count of distinct
-     `nmc_traininginstitutecode` values in `AEI_programmes.csv`.
-   - Programmes-by-institute endpoint, called with one institute code, returns only
-     that institute's programme rows.
-2. **Alternate path upload** (same course for all students)
-   - Prepare a test file from `master_students.csv`: copy 3-5 full rows (header +
-     data) that all share one institute/programme into a `.csv`, unchanged - this is
-     your "all-success" file.
-   - Prepare a second test file: same rows, but hand-edit one field per row (e.g.
-     first name on row 1, first name + DOB on row 2) to force mismatches.
-   - POST the all-success file to the alternate-path endpoint with that institute +
-     programme selected. Confirm response batch totals: `total = success`,
-     `errors = 0`.
-   - POST the mismatch file the same way. Confirm each row's `nmc_rowstatus =
-     'Failed'` and the right `nmc_errorNdescription` field is populated with the
-     "<Field> does not match with organization's record." message, in field-check
-     order.
-3. **Original path upload** (multiple courses)
-   - Build a test file spanning 2+ programmes (mixed rows from
-     `master_students.csv`).
-   - POST with only institute code selected (no programme/academic route) - confirm
-     rows are matched against their own programme, not forced to one.
-   - Repeat with programme/academic route also selected as optional filters, and
-     confirm behaviour matches the spec (filters narrow the drop-downs, they do not
-     override each row's own programme).
-4. **Resubmission**
-   - Take a `Failed` row from step 2, resubmit it via the single-row endpoint with a
-     different (correct) programme - confirm it flips to `Success` and the batch
-     totals update.
-   - Take 2+ `Failed` rows, resubmit via the bulk endpoint with one revised
-     programme - confirm all selected rows update together.
-   - Take a `Failed` row, resubmit via the full-record edit endpoint with the actual
-     field corrected (not just the programme) - confirm it re-validates and flips to
-     `Success`.
-5. **Delete** a single error row - confirm it is gone from `upload_students` and
-   batch totals decrease; confirm there's no undo endpoint/behaviour.
-6. Run `uv run pytest` - all matching-logic unit tests pass (full match, each of the
-   5 single-field mismatches, multi-field mismatch).
+1. `cd backend && uv run pytest -v` - all 52 tests pass (15 from Phases 1-2 + 37 in
+   the three new `tests/test_phase3_*.py` files).
+
+2. **Lookups**
+   ```
+   curl -s http://localhost:8008/api/institutes
+   curl -s "http://localhost:8008/api/programmes?institute_code=1315"
+   ```
+   - Institutes: exactly 2 entries (`1315` University of Chester, `8020`
+     Canterbury Christ Church University).
+   - Programmes for `1315`: exactly **4** entries (`P2`, `AN1`, `SC1`, `DF3`), not
+     6 - two of `AEI_programmes.csv`'s 1315 rows are the same programme at a
+     different qualification level (`SC1` and `AN1` each have an `A`/`F` pair),
+     collapsed into one dropdown choice since qualification level isn't part of
+     the programme selection UI.
+
+3. **Alternate path upload** (same course for all students)
+   ```
+   cat > /tmp/alt_ok.csv <<'EOF'
+   nmc_nmcpin,nmc_nmctitlename,nmc_firstname,nmc_maidenname,nmc_lastname,nmc_dateofbirth,nmc_gender,nmc_nationalityname,nmc_countryofbirthname,nmc_email,nmc_addressline1,nmc_addressline2,nmc_addressline3,nmc_city,nmc_postcode,nmc_countryname,nmc_traininginstitutecode,nmc_trainingtype,nmc_programme,nmc_academicroute,nmc_coursestartdate,nmc_courseenddate,nmc_trainingexampassdate,nmc_trainingstartdate,nmc_trainingcompletiondate
+   16H0404E,Miss,ROSE 1,,LEE,20020524,F,Nigerian,Nigeria,2211471@uknmc.org,London Road 1,BOLTON,,Woodford,CM168AH,England,1315,R,SC1,B Nurs (Hons),20200901,20290901,20260812,20220919,20260812
+   EOF
+   curl -s -F institute_code=1315 -F nmc_trainingtype=R -F nmc_programme=SC1 \
+        -F nmc_academicroute="B Nurs (Hons)" -F file=@/tmp/alt_ok.csv \
+        http://localhost:8008/api/uploads/alternate-path
+   ```
+   Expect `nmc_totalsuccessrecords: 1`, `nmc_totalfailedrecords: 0`, `status:
+   "Processing Complete"`, and `uploaded_records[0].nmc_programmename ==
+   "Pre-registration nursing - Child"` (resolved server-side).
+
+   Now edit `/tmp/alt_ok.csv`, change `ROSE 1` to `WRONG NAME`, and re-run the same
+   curl command. Expect `nmc_rowstatus: "Failed"` and `nmc_error1description:
+   "First name does not match with organization's record."` - note the row's own
+   `nmc_programme` column in the file doesn't even need to be right for this path;
+   whatever programme you select in the form (`SC1`/`R`/`B Nurs (Hons)` above)
+   overrides whatever the file says, by design.
+
+4. **Original path upload** (multiple courses)
+   ```
+   cat > /tmp/orig.csv <<'EOF'
+   nmc_nmcpin,nmc_nmctitlename,nmc_firstname,nmc_maidenname,nmc_lastname,nmc_dateofbirth,nmc_gender,nmc_nationalityname,nmc_countryofbirthname,nmc_email,nmc_addressline1,nmc_addressline2,nmc_addressline3,nmc_city,nmc_postcode,nmc_countryname,nmc_traininginstitutecode,nmc_trainingtype,nmc_programme,nmc_academicroute,nmc_coursestartdate,nmc_courseenddate,nmc_trainingexampassdate,nmc_trainingstartdate,nmc_trainingcompletiondate
+   16H0404E,Miss,ROSE 1,,LEE,20020524,F,Nigerian,Nigeria,2211471@uknmc.org,London Road 1,BOLTON,,Woodford,CM168AH,England,1315,R,SC1,B Nurs (Hons),20200901,20290901,20260812,20220919,20260812
+   16H0405E,Miss,ROSE 2,,LEE,20040321,F,British,England,2211471@uknmc.org,London Road 2,TARPORLEY,CHESHIRE,Woodford,CM160BS,England,1315,R,AN1,B Nurs (Hons),20200901,20290901,20260812,20230918,20260812
+   EOF
+   curl -s -F institute_code=1315 -F file=@/tmp/orig.csv \
+        http://localhost:8008/api/uploads/original-path
+   ```
+   Row 1 (`SC1`, correct) -> `Success`. Row 2 (`AN1`, wrong - 16H0405E's real
+   programme is `SC1`) -> `Failed` with `"Programme does not match with
+   organization's record."` - confirms each row is matched against its **own**
+   programme from the file, not forced to a single one. Note the response's
+   `nmc_programme` (batch-level) is `null` here, since it wasn't supplied as a
+   filter - that's expected and doesn't affect row matching either way.
+
+5. **Resubmission** - using the batch from step 4 (`nmc_uploadbatchid` from the
+   response; substitute below as `<BATCH_ID>` and the failed row's `id` as
+   `<ROW_ID>`):
+   - Single row + revised programme:
+     ```
+     curl -s -X POST http://localhost:8008/api/upload-students/resubmit-with-programme \
+       -H "Content-Type: application/json" \
+       -d '{"upload_student_ids": [<ROW_ID>], "nmc_trainingtype": "R", "nmc_programme": "SC1", "nmc_academicroute": "B Nurs (Hons)"}'
+     ```
+     Expect `nmc_rowstatus: "Success"`. Then `curl -s
+     http://localhost:8008/api/batches/<BATCH_ID>` and confirm
+     `nmc_totalsuccessrecords: 2`, `nmc_totalfailedrecords: 0`.
+   - Bulk (repeat step 4 to get a fresh batch with 2 failed rows, then pass both
+     ids in `upload_student_ids`) - confirm both flip to `Success` in one call.
+   - Full-record edit (View Details): upload a row with an unknown PIN (e.g.
+     change `16H0404E` to `99999999` in a test file), note its `id`, then send
+     **every** field back with its correct value (any field left out of the JSON
+     body is set to blank/null, which will itself become a fresh mismatch against
+     the master record - the endpoint expects the complete corrected record, the
+     same way View Details redisplays and resubmits the whole form, not a partial
+     patch):
+     ```
+     curl -s -X POST http://localhost:8008/api/upload-students/<ROW_ID>/resubmit-full \
+       -H "Content-Type: application/json" \
+       -d '{"nmc_nmcpin": "16H0404E", "nmc_nmctitlename": "Miss", "nmc_firstname": "ROSE 1", "nmc_maidenname": null, "nmc_lastname": "LEE", "nmc_dateofbirth": "20020524", "nmc_gender": "F", "nmc_nationalityname": "Nigerian", "nmc_countryofbirthname": "Nigeria", "nmc_email": "2211471@uknmc.org", "nmc_addressline1": "London Road 1", "nmc_addressline2": "BOLTON", "nmc_addressline3": null, "nmc_city": "Woodford", "nmc_postcode": "CM168AH", "nmc_countryname": "England", "nmc_traininginstitutecode": "1315", "nmc_trainingtype": "R", "nmc_programme": "SC1", "nmc_academicroute": "B Nurs (Hons)", "nmc_coursestartdate": "20200901", "nmc_courseenddate": "20290901", "nmc_trainingexampassdate": "20260812", "nmc_trainingstartdate": "20220919", "nmc_trainingcompletiondate": "20260812"}'
+     ```
+     Expect `nmc_rowstatus: "Success"`. (This is exactly what happens if you only
+     send the fields shown in the first draft of this guide, minus the address/
+     course-date/nationality fields: the row still comes back `Failed`, on those
+     now-blank fields - caught and fixed while writing this guide, kept here as a
+     working example rather than a trap.)
+
+6. **Delete** - `curl -s -X DELETE
+   http://localhost:8008/api/upload-students/<ROW_ID>` on a failed row -> `204`.
+   Confirm via `GET /api/batches/<BATCH_ID>` that `nmc_totalrecords` dropped by 1
+   and the row is gone from `error_records`. Delete the same id again -> `404`
+   (no undo).
+
+7. **Edge cases** - unsupported file extension (`curl ... -F file=@/tmp/x.txt` on
+   either upload endpoint) -> `400`; a batch/upload-student id that doesn't exist
+   on any read/resubmit/delete endpoint -> `404`; an upload file with a header row
+   but zero data rows -> `200` with `nmc_totalrecords: 0` (no crash).
+
+**Design notes worth knowing before testing:** the 5 error-description slots are
+filled in the order mismatches are found (Programme check first - a combined
+check across institute/training type/programme/academic route - then the fields
+shown on the View Details page in tab order), capped at 5; a PIN with no matching
+`master_students` row at all reports a single `"NMC PIN does not match with
+organization's record."` error rather than attempting further field checks. Full
+rationale is in `developmentplan_execution.md` Phase 3.
 
 ## Phase 4 - UI Development (visual/structural check, no live data required)
 
