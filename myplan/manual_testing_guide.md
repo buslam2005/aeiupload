@@ -210,24 +210,109 @@ rationale is in `developmentplan_execution.md` Phase 3.
 
 ## Phase 4 - UI Development (visual/structural check, no live data required)
 
-With `npm run dev` running, open each page and compare side-by-side against its
-diagram in `requirement_doc/diagrams/`:
+Phase 4 has no backend wiring yet (that's Phase 5) - every page runs on
+hardcoded mock data in `frontend/app/lib/mockData.ts`, shaped exactly like the
+real Phase 3 API responses. Two mock batches exist: batch **1** (all-success,
+1 record, `SC1`) and batch **2** (mixed, 1 success + 1 failed record, no fixed
+programme - the failed row has a "First name does not match..." error, useful
+for checking the red inline error text).
 
-- First Page: institute drop-down present, values formatted `Name - Code`.
-- Upload Summary: Change button, Upload File button, Upload Summary box, greyed-out
-  Advanced Search, disabled Search box, subgrid with all specified columns.
-- Upload Path Selection: guidance text matches spec wording; two purple buttons.
-- Upload Programme Selection: single programme drop-down, file picker, Upload
-  button.
-- Upload-OriginalPath: institute code (mandatory), programme + academic route
-  (optional), file picker, Upload button.
-- Upload Result: header attributes block, Uploaded Records + Error Records
-  subgrids, 4-row visible height.
-- Error Records subgrid: select-all checkbox, top Revised Programme + Submit, all
-  per-row columns present, Resubmit button, View Details/Delete dropdown.
-- View Details: 4 equal-height tabs with the exact field lists per tab.
-- No 'NMC' text/logo anywhere ('Prototype' shown instead); no header/footer links.
-- Layout/spacing consistent when navigating between pages.
+1. `cd frontend && npm run lint` - clean, no errors/warnings.
+2. `npm run build` - static export succeeds, all 7 routes listed as prerendered
+   (`/`, `/upload-original-path`, `/upload-path-selection`,
+   `/upload-programme-selection`, `/upload-result`, `/upload-summary`,
+   `/view-details`).
+3. `npm test` - all 24 tests pass (16 pure-function tests for `lib/format.ts`
+   including the `distinctBy` de-dup helper, 5 for the `ErrorRecordsSubgrid`
+   component, 2 for `FilePickerIcon`'s disabled/enabled states, 1 for the
+   First Page selection-gated navigation).
+4. Run the full app per section 1 (`npm run build` in frontend, then
+   `uv run uvicorn app.main:app --port 8008` in backend) and click through the
+   whole journey in a browser:
+   - **First Page** (`/`): institute drop-down shows exactly 2 options,
+     alphabetically sorted (`Canterbury Christ Church University - 8020` then
+     `University of Chester - 1315`); Continue is disabled until one is picked.
+   - **Upload Summary** (after Continue): right-aligned two-line block -
+     "You are logged in as User1," alone on the first line, then the
+     institute name + Change button together on the line underneath, both
+     right-aligned; Upload Summary box shows the most recent batch's one-line
+     result; Advanced Search greyed out and Search box disabled, now with a
+     disabled magnifying-glass icon button next to it (both genuinely
+     non-interactive, not just styled); the batches table lists both mock
+     batches, batch 2 (newest) first, with correct BST date formatting
+     (`DD/MM/YYYY h:mm AM/PM`) and status text (`Failed` for batch 2,
+     `Processing Complete` for batch 1 - the latter is the literal text
+     `UploadSummary.png` shows in that state, since the written spec only
+     defines the `Failed` case).
+   - **Upload Path Selection** (Upload file button): guidance text present;
+     the two square buttons keep their original size, with their label text
+     left-aligned inside the square (not centred); clicking a square
+     highlights it; Next stays disabled until one is chosen, then routes to
+     Programme Selection or Original Path accordingly; Back returns to Upload
+     Summary.
+   - **Upload Programme Selection** (Same course path): the HEI Programme
+     drop-down now lists **8** distinct `nmc_aeiprogrammetitle` values for
+     institute `1315` (not the 4 training-type/programme/route choices the
+     Revised Programme drop-down uses elsewhere - each qualification-level
+     variant, e.g. Apprenticeship vs Full Time, has its own title and is its
+     own entry here); "Choose file" is an icon button, greyed out and
+     unclickable until a programme is picked, then becomes enabled - pick a
+     file, confirm Upload goes from disabled to enabled, click it - routes to
+     `/upload-result?batchId=1`.
+   - **Upload-OriginalPath** (Multiple courses path, navigate back and pick it
+     instead): Institute Code drop-down shows codes only (`1315`, `8020`, no
+     names) and is pre-filled from the institute chosen on First Page, but is
+     changeable; Programme/Academic Route drop-downs are optional and disabled
+     until an institute code is set; "Choose file" is the same icon button,
+     greyed out until **Programme** specifically is selected (Institute Code
+     alone isn't enough); picking a file and clicking Upload routes to
+     `/upload-result?batchId=2`.
+   - **Upload Result**: the 3x3 attributes grid (Uploaded By/Institute
+     Code/Total Records, Batch ID/Programme/Successes, File/Academic
+     Route/Errors) matches `UploadResult.png`'s layout; Uploaded Records and
+     Error Records are both in their own scrollable region (~4 rows visible,
+     scroll for the rest - there's only 1 row in each mock batch, so this is
+     structural only until Phase 6 has enough rows to actually test scrolling).
+   - **Error Records subgrid** (visit `/upload-result?batchId=2` to see a
+     populated one): "select all" sits alone on its own line, with "Revised
+     Programme" + its drop-down + Submit on the line underneath; select-all
+     toggles every row checkbox; the row's own Revised Programme + Resubmit is
+     disabled until a programme is chosen; clicking a row's Delete removes it
+     from the table immediately (local state only - reload the page and it's
+     back, since nothing is persisted yet); clicking View Details opens that
+     row's `/view-details` page; clicking Resubmit or Submit navigates to
+     Upload Summary, matching the spec's stated end state for those actions.
+   - **View Details** (from the error row above): 4 tabs, all switchable; the
+     3 inactive tab labels are a visibly darker grey than before (easier to
+     read against white); Student Details shows the red error message
+     ("First name does not match with organization's record.") directly under
+     the First Name field; Date of Birth is shown/edited as `2002-05-24`
+     (transformed from the stored `20020524`); Gender is shown/edited as
+     "Female" (mapped from the stored `F`) - both per the exact
+     `UI_requirements.md` field mappings; all tab panels share one fixed
+     min-height so the tab strip doesn't jump between tabs; Back and Resubmit
+     both present, Resubmit navigates to Upload Summary.
+   - **Footer** (every page): tagline ("We're the independent regulator of
+     more than 867 nursing and midwifery professionals" - not 867,000), 4
+     columns (Our values, Popular links, More about, Stay updated), a "Follow
+     us" row of 4 icons, and a bottom legal line reading "© The UK Health
+     Council. The UKN is a registered charity in England and Wales (1091434)
+     and Scotland (SC038362)". Confirm nothing in the footer is clickable (no
+     underline/hover/cursor-pointer on any item - it's all plain text).
+   - Confirm no 'NMC' logo/wordmark appears anywhere (the header just says
+     "Prototype") and there are no header/footer navigation links on any page.
+
+**Deliberate simplifications from the diagrams** (documented in
+`developmentplan_execution.md`, flagged here for awareness): the "View
+Details / Delete" drop-down button in `ErrorRecordsSubgrid.png` is rendered as
+two plain inline actions instead of a dropdown menu (same two options, always
+visible rather than hidden behind a click); the single-item "View Details"
+drop-down on the Upload Summary batches table is a direct link for the same
+reason. Field labels that literally read "NMC PIN" / "NMC Programme" were kept
+as-is (per the exact field-mapping text in `UI_requirements.md`) rather than
+scrubbed for the "do not show NMC" General Note, which was read as targeting
+the organisation's logo/branding rather than these domain field names - flag
+if you'd rather they read differently.
 
 ## Phase 5 - Integration (full click-through, backend + frontend together)
 

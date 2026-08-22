@@ -46,9 +46,8 @@ This page is the page after user clicks 'Upload File' button in Upload Summary P
 
 ## UploadProgrammeSelection.png
 This page is the next page after user clicks 'Same Course...' button in Upload Summary Page. It's named as Upload Programme Selection page. This is the start of alternate path of upload.
-- user has to select a single programme in the drop-down box.
-- Candidates of the drop-down box are programmes offered by the selected institute. Do not include programmes of other institutes.
-    - drop-down box candidates are distinct programmes of the selected institute, extracted from programmes table.
+- user has to select a single programme (nmc_aeiprogrammetitle from Programmes table) in the drop-down box.
+- Candidates of the drop-down box are programmes offered by the selected institute (nmc_aeiprogrammetitle from Programmes table). Do not include programmes of other institutes.
 
 #### Additional elements:
 - to add a field to allow user to select a file for upload.
@@ -83,6 +82,7 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 #### Enhancement 2 - Error Records subgrid
 - Below it is an expanded subgrid which facilitates user to read more attributes, and to pick another programe for resubmission.
 - The Error Records subgrid consists of the following columns
+    - checkbox in the leftmost of each row
     - Line number (row number in the Excel file; no column header)
     - Name (concatenate nmcpin, hyphen, first name, last name)
     - NMC PIN (nmcpin)
