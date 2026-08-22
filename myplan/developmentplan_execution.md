@@ -627,6 +627,37 @@ doc typo; Phase 4 should bind the Nationality field to `nmc_nationalityname`.
 **Deliverable state:** ready for the manual checks in `manual_testing_guide.md`
 Phase 3 section before starting Phase 4.
 
+**Addendum (2026-08-22): upload file column mapping clarified**
+
+After Phase 4 (during Phase 5 work), the requester added an "upload file
+field mapping" section to `requirements.md`, giving the upload file's actual
+column headers (e.g. `NMC PIN`, `Middle Name`, `Course Code`, `Academic
+Level`, `Pass Date`) and their mapping to `upload_students` columns. This
+revealed that Phase 3's original assumption - "`UPLOAD_COLUMNS` assumes the
+uploaded file's header matches `master_students`' business column names
+exactly" - was wrong: the real file headers are human-readable labels, not
+the internal `nmc_*` names.
+
+- `backend/app/services/parsing.py`: `UPLOAD_COLUMNS` (a flat list) replaced
+  with `FILE_COLUMN_TO_FIELD` (a dict mapping each real file header to its
+  `nmc_*` field). `_parse_csv`/`_parse_xlsx` now build each row by looking up
+  cells by the file's own header name. `Previous Institute Code` maps to "no
+  table field" per the mapping doc and is intentionally dropped at parse
+  time (never written into the row dict at all, not even as `None`).
+- `backend/tests/test_phase3_parsing.py` and
+  `backend/tests/test_phase3_uploads_api.py` (`CSV_HEADER`) updated to use
+  the real file headers instead of `nmc_*` names; added
+  `test_parse_csv_ignores_previous_institute_code_column`. **58/58** tests
+  pass (was 52 before this addendum; net +6: +1 parsing test, +5 new Phase 5
+  lookup/upload-student tests - see the Phase 5 entry below).
+- **Verified the mapping is load-bearing, not just documentation**: renamed
+  the `"NMC PIN"` key to `"WRONG HEADER"` and confirmed 11 real test
+  failures (every test whose CSV fixture depends on the PIN, name, or
+  programme columns parsing correctly), then reverted and confirmed 58/58
+  passes again.
+- `myplan/manual_testing_guide.md`'s Phase 3 curl examples updated to the
+  real file headers (both `alt_ok.csv` and `orig.csv` inline heredocs).
+
 ### Phase 4 - UI Development
 Build each page from `UI_requirements.md` and its named diagram, keeping consistent
 spacing/layout across pages and stripping NMC-specific chrome per the Generate Notes
@@ -951,6 +982,291 @@ present and no clickable elements inside it.
   Upload Summary).
 - Confirm the three error-correction flows (single-row, bulk, View Details) all end
   by returning the user to Upload Summary with a new batch entry visible.
+
+**Status: Complete (2026-08-22)**
+
+**Backend gap closed first** (flagged in the Phase 4 addendum, `ProgrammeTitleChoice`
+comment in `frontend/app/lib/types.ts`): Upload Programme Selection's HEI Programme
+drop-down needs one entry per distinct `nmc_aeiprogrammetitle`, which varies by
+qualification level - unlike `GET /api/programmes`, which deliberately collapses
+qualification level away for the Revised Programme use case. Two new endpoints added:
+- `GET /api/programme-titles?institute_code=...` (`app/schemas.py`
+  `ProgrammeTitleChoiceOut`; `app/services/programmes.py`
+  `list_programme_titles` - same shape as `list_programme_choices` but keyed
+  by `nmc_aeiprogrammetitle` alone, not the trainingtype/programme/route
+  triple, so qualification-level variants stay separate).
+- `GET /api/upload-students/{id}` (`app/routers/uploads.py`) - single-row
+  fetch for the View Details page, reusing the existing `_to_out` helper so
+  the resolved `nmc_programmename` comes along for free. Chosen over
+  threading a `batchId` through the View Details URL and refetching the
+  whole batch: View Details only ever needs its own row, and this keeps the
+  page's data dependency (and its loading/404 states) independent of which
+  batch it was reached from.
+
+Both tested in new `backend/tests/test_phase5_integration.py` (5 tests:
+8 distinct titles for institute `1315`, institute exclusion, alphabetical
+sort, single-row fetch with resolved programme name, 404 for an unknown id).
+**58/58** backend tests pass overall (53 carried over + the file-column-mapping
+addendum's +1 + these +5, less the 1 test replaced not added in the addendum -
+see that addendum above for the exact accounting).
+
+**Frontend wiring** - `frontend/app/lib/api.ts` (new): one typed `fetch`
+wrapper per backend endpoint, all against relative `/api/...` paths (no base
+URL needed - same single-port origin as the static export, per the
+architecture decided in Phase 1). Every page and `ErrorRecordsSubgrid` swapped
+its `MOCK_*` import for the matching `api.ts` call:
+- **First Page**: `getInstitutes()` on mount (was `MOCK_INSTITUTES`).
+- **Upload Summary**: `getBatches()` on mount (was `MOCK_BATCH_SUMMARIES`).
+- **Upload Programme Selection**: `getProgrammeTitles(instituteCode)` on
+  mount; Upload button now calls `uploadAlternatePath(...)` and routes to
+  the **real** returned `nmc_uploadbatchid` (previously hardcoded `1`).
+- **Upload-OriginalPath**: `getInstitutes()` and `getProgrammes(instituteCode)`
+  replace `MOCK_INSTITUTES`/`MOCK_PROGRAMMES`; Upload button calls
+  `uploadOriginalPath(...)` and routes to the real returned batch id
+  (previously hardcoded `2`).
+- **Upload Result**: `getBatch(batchId)` replaces `MOCK_BATCH_DETAILS`;
+  `getProgrammes(batch.nmc_institutecode)` (fetched after the batch resolves,
+  so the institute code is known) replaces `MOCK_PROGRAMMES` for the
+  Revised Programme drop-downs. Added an explicit `undefined` (loading) vs
+  `null` (confirmed 404) state for `batch`, rather than Phase 4's single
+  "not found" branch, since a real fetch has a genuine in-flight window a
+  synchronous mock lookup never had.
+- **ErrorRecordsSubgrid**: bulk and per-row resubmit now call
+  `resubmitWithProgramme(...)` (parsing the existing `trainingtype|programme|
+  route` option-value key back into the three fields via a new
+  `parseProgrammeChoiceKey` helper - the inverse of the existing
+  `programmeChoiceKey`) before navigating to Upload Summary; Delete now
+  calls `deleteUploadStudent(id)` and only removes the row from local state
+  after that resolves, rather than local-only removal.
+- **View Details**: `getUploadStudent(studentId)` replaces
+  `findMockUploadStudent`; Resubmit now calls `resubmitFull(id, payload)`.
+  `payload` is built by a new `toResubmitFullPayload()` helper in `api.ts`
+  (explicit field-by-field pick of exactly `ResubmitFullRequest`'s 25
+  fields) rather than destructuring-and-discarding the other 11 fields
+  inline in the page component - the first draft did the destructure
+  inline and tripped 11 `no-unused-vars` warnings; moving the field
+  selection into a named, reusable function in `api.ts` (next to the type
+  it targets) removed the warnings at the source instead of suppressing
+  them, and keeps the "which fields does the server accept" logic in one
+  place. `ResubmitFullPayload` itself is `Omit<UploadStudent, ...11 server-
+  managed fields>` rather than a hand-written duplicate field list, so it
+  can never drift out of sync with `UploadStudent`.
+- `frontend/app/lib/mockData.ts` deleted entirely once no page referenced it
+  any more (confirmed via a repo-wide grep for `mockData`/`MOCK_` before
+  deleting) - Phase 4's stated purpose for the file ("swap mock data for
+  real fetch() calls... a like-for-like change") is now complete.
+
+**Troubleshooting (with evidence):**
+- **`react-hooks/set-state-in-effect` lint error** in Upload-OriginalPath:
+  the first draft's programme-choices effect called `setChoices([])`
+  synchronously when `instituteCode` was empty, before an early `return`.
+  Fixed by removing that branch from the effect (`if (!instituteCode)
+  return;` only) and instead resetting `choices` inside the institute
+  `<select>`'s own `onChange` handler, alongside the other already-existing
+  resets (`programme`, `academicRoute`, `file`) - a direct user interaction
+  resetting state is not the pattern the lint rule flags; an effect
+  synchronously setting state on every render is.
+- **Verified the new `resubmitWithProgramme` key-parsing logic is real, not
+  just green.** `parseProgrammeChoiceKey` splits the option value
+  (`trainingtype|programme|route`) back into the three POST fields.
+  Temporarily swapped the destructured order (programme and route swapped)
+  and confirmed the new `ErrorRecordsSubgrid` bulk-resubmit test fails with
+  a clear diff (`nmc_academicroute`/`nmc_programme` values swapped in the
+  posted JSON body), then reverted and confirmed 33/33 passes again.
+- **Existing tests broken by the switch to real `fetch` calls, fixed by
+  mocking `fetch`, not by weakening the assertions**: `page.test.tsx` (First
+  Page now loads institutes asynchronously - added `vi.stubGlobal("fetch",
+  ...)` and an `await screen.findByRole("option", ...)` before selecting)
+  and `ErrorRecordsSubgrid.test.tsx`'s delete test (Delete now awaits a real
+  `DELETE` call - added a resolved-`204` fetch stub and asserted the exact
+  URL/method called, not just the visual removal).
+- Two new test files added for the new logic: `frontend/app/lib/api.test.ts`
+  (11 tests: `apiFetch` error/204 handling, FormData body construction for
+  both upload endpoints, JSON body shape for `resubmitWithProgramme` and
+  `resubmitFull`, `toResubmitFullPayload` field selection) and a new bulk-
+  resubmit test in `ErrorRecordsSubgrid.test.tsx`. **33/33** frontend tests
+  pass overall (24 carried over + these).
+
+**Verification performed:**
+- `cd backend && uv run pytest -v` - 58/58 pass.
+- `cd frontend && npm run lint` - clean. `npm run build` - static export
+  succeeds, same 7 routes as Phase 4. `npm test` - 33/33 pass.
+- **Live end-to-end walkthrough** (built frontend + `uv run uvicorn
+  app.main:app --port 8008`, fresh seeded DB, Playwright browser automation)
+  covering everything `manual_testing_guide.md`'s Phase 5 section now
+  describes: First Page institute drop-down populated from the real API;
+  Alternate-path upload of a matching file routes to the real batch id and
+  shows a clean Uploaded Records row; Alternate-path upload of a
+  first-name-mismatch file shows it in Error Records with the correct
+  message; View Details loads the real row (error text under the right
+  field, DOB/Gender correctly transformed), editing and resubmitting flips
+  it to `Success` in the database (confirmed via `GET /api/batches/{id}`);
+  Original-path upload of a two-row file with one genuine programme
+  mismatch shows 1 success + 1 "Programme does not match..." error;
+  select-all + bulk Revised Programme + Submit flips both rows to `Success`
+  and lands on Upload Summary; Upload Summary then lists both real batches,
+  newest first, correct totals, "View Details" reopens the right batch;
+  Delete calls the real endpoint and is confirmed gone via a follow-up GET,
+  including the second-delete 404 (no undo); `/upload-result?batchId=<bad
+  id>` renders "Batch not found." instead of crashing. Cleaned up all
+  screenshots, the temp `.playwright-mcp/` directory, temp CSV fixtures,
+  and the running Uvicorn process afterward, and reset the SQLite file so
+  the next manual test starts from a clean seed.
+- Deliberately broke two things mid-verification to confirm the tests that
+  should catch them actually do (see Troubleshooting above): the file
+  column mapping (`FILE_COLUMN_TO_FIELD`'s PIN key) and the
+  `parseProgrammeChoiceKey` field order - both reverted after confirming
+  real failures.
+
+**Known pre-existing behaviour at first Phase 5 completion, since fixed - see
+the addendum immediately below:** all three resubmit flows navigated through
+a bare `/upload-summary` with no institute context. Delete does not navigate
+away (stays on the same Upload Result page), so it was never affected.
+
+**Deliverable state:** ready for the manual checks in `manual_testing_guide.md`
+Phase 5 section before starting Phase 6.
+
+**Addendum (2026-08-22): two post-manual-test defects fixed**
+
+The requester's manual test of Phase 5 found two defects:
+
+**(a) Upload-OriginalPath wrongly required Programme + Academic Route before
+allowing a file to be chosen/uploaded.** Both fields are optional per the
+plan ("programme/academic route optional filters only") and per
+`database_requirements.md`; only Institute Code is mandatory. Root cause:
+`FilePickerIcon`'s `disabled` prop and the Upload button's guard/`disabled`
+condition were keyed off `!programme` instead of `!instituteCode` - copied
+by analogy from Upload Programme Selection, where a programme really is
+mandatory, without re-checking that this page's own institute-only
+requirement is different. Fixed in
+`frontend/app/upload-original-path/page.tsx`: both now key off
+`!instituteCode` only; `handleUpload`'s guard likewise drops `!programme`.
+
+**(b) After a View Details resubmit, Upload Summary's "You are logged in
+as" institute reset to "no institute selected" instead of showing the
+resubmitted record's own institute.** Root cause: every resubmit/bulk-resubmit
+call site did `router.push("/upload-summary")` with no query params, and
+Upload Summary's institute display is driven entirely by
+`institute_code`/`institute_name` query params (there is no session/auth
+state in this prototype) - so the context was always dropped on any
+navigate-away-and-back action, not just this one code path.
+
+Fixed by resolving the institute from the record just acted on, not from
+whatever the user's browsing context happened to be before:
+- `backend/app/schemas.py`: `UploadStudentOut` gains `institute_name: str |
+  None = None`, resolved server-side in `_to_out()`
+  (`backend/app/routers/uploads.py`) via the same `_institute_name()` helper
+  `BatchSummaryOut` already uses - symmetric with how `nmc_programmename` is
+  already resolved there, and means `GET /api/upload-students/{id}` (View
+  Details' own data source) carries everything needed without a second
+  fetch. `_institute_name()`'s parameter type widened to `str | None` since
+  `nmc_traininginstitutecode` is nullable on `UploadStudent`.
+- `frontend/app/lib/types.ts`: `UploadStudent.institute_name` added to
+  match. `frontend/app/lib/api.ts`: `ResubmitFullPayload`'s `Omit<...>` list
+  extended to exclude it too (it's server-resolved, not part of
+  `ResubmitFullRequest`).
+- `frontend/app/lib/format.ts`: new `uploadSummaryPath(instituteCode,
+  instituteName)` helper - builds the institute-scoped Upload Summary URL,
+  falling back to the bare path only if either piece is genuinely missing
+  (e.g. a row whose institute code doesn't resolve to a known institute).
+  Centralised here rather than duplicated at each call site, and reused by
+  every resubmit flow so the fix is consistent across all of them rather
+  than View-Details-only:
+  - `view-details/page.tsx`: `handleResubmit` now uses
+    `uploadSummaryPath(form.nmc_traininginstitutecode, form.institute_name)`.
+  - `components/ErrorRecordsSubgrid.tsx`: gained two new required props,
+    `instituteCode`/`instituteName`, used the same way in both
+    `resubmitBulk` and `resubmitRow` (this fixes the identical bug in the
+    other two resubmit flows, which the requester didn't separately report
+    but share the exact same root cause). `upload-result/page.tsx` passes
+    `batch.nmc_institutecode`/`batch.institute_name` down - both already
+    resolved server-side on the batch, so no extra fetch needed there
+    either.
+- **Verified both fixes are load-bearing, not just visually confirmed**:
+  temporarily loosened `uploadSummaryPath`'s guard to `!instituteCode` only
+  (dropping the `!instituteName` half) and confirmed
+  `format.test.ts`'s new fallback test fails with a URL containing the
+  literal string `"institute_name=null"`, then reverted and confirmed
+  35/35 passes again.
+- Live-verified both fixes end-to-end (Playwright, built frontend + fresh
+  seeded DB on port 8008): (a) navigated to Upload-OriginalPath with only an
+  institute pre-selected, confirmed "Choose file" and Upload were enabled
+  and a real upload succeeded with no programme/route chosen; (b) uploaded a
+  mismatch file, opened View Details, corrected the field, clicked
+  Resubmit, and confirmed the resulting URL and the on-page "University of
+  Chester" text were both correct (not "no institute selected").
+- Backend: **58/58** pytest tests pass (added an `institute_name` assertion
+  to the existing `test_get_upload_student_returns_row_with_resolved_programme_name`
+  test rather than a new one, since it exercises the exact same request).
+  Frontend: **35/35** vitest tests pass (2 new `uploadSummaryPath` tests in
+  `format.test.ts`; `ErrorRecordsSubgrid.test.tsx` and `api.test.ts`
+  fixtures/assertions updated for the new `institute_name` field and the
+  bulk-resubmit test's expected navigation URL). `npm run lint` / `npm run
+  build` clean.
+
+**Addendum 2 (2026-08-23): two more post-manual-test defects, same root cause**
+
+The requester's next manual test pass found two further defects, both
+screenshotted (`myplan/manual_test_screens/defect_c_...png`,
+`defect_d_...png`) and both traced to the **same single root cause**, one
+call site the previous addendum missed:
+
+**(c) After a successful upload, clicking "Back to Upload Summary" on Upload
+Result reset the top-right institute display to "no institute selected".**
+**(d) Consequently**, uploading a second file via Alternate Path (Upload
+Summary -> Upload file -> Same course -> Upload Programme Selection) landed
+on a HEI Programme drop-down with no options at all ("Select a programme"
+only), blocking the journey.
+
+Root cause: `upload-result/page.tsx`'s "Back to Upload Summary" `<Link>` was
+still `href="/upload-summary"` (bare, no query params) - this is the one
+navigate-to-Upload-Summary call site the previous addendum's
+`uploadSummaryPath()` fix didn't reach, since that addendum only touched the
+three *resubmit* flows (View Details, bulk, single-row), not the plain
+"go back" link that fires on every successful upload. With no
+`institute_code` in the URL, Upload Summary showed "no institute selected",
+and its own "Upload file" link then forwarded that empty `institute_code`
+through Upload Path Selection into Upload Programme Selection, whose
+`useEffect` guard (`if (!instituteCode) return;`) never calls
+`getProgrammeTitles`, leaving the drop-down permanently empty - not a
+crash, just silently no options, which is what "blocks the upload journey"
+looked like in the screenshot.
+
+**Fix**: `upload-result/page.tsx` - the working "Back to Upload Summary"
+link (the one rendered once `batch` has loaded) now uses
+`uploadSummaryPath(batch.nmc_institutecode, batch.institute_name)`, the
+same helper the previous addendum already introduced and already had a
+`BatchDetailOut` field (`institute_name`) to draw from - no new data
+needed, this was purely a missed call site. The other "Back to Upload
+Summary" link (the "Batch not found" branch, which has no batch data to
+draw an institute from) is intentionally left bare - there is nothing to
+restore in that case.
+
+Audited every other `router.push`/`<Link href>` in the frontend for the
+same class of bug (`grep`'d for `upload-summary`, `upload-path-selection`,
+and every `router.push`/`href="/"` call site) and confirmed all of them
+already carry `qs`/`institute_code`/`institute_name` forward correctly -
+this was the only remaining gap.
+
+No new automated test added for this specific fix: it's the same
+already-tested `uploadSummaryPath()` helper (covered by `format.test.ts`)
+applied to a call site route-page tests don't otherwise cover in this
+codebase (consistent with the existing pattern - `upload-result`,
+`upload-path-selection`, `upload-original-path`, `upload-programme-selection`,
+and `view-details` have never had dedicated component test files; their
+route-level behaviour is verified live). Live-verified instead (Playwright,
+built frontend + fresh seeded DB on port 8008), reproducing the exact
+reported journey: First Page -> Upload Summary -> Upload file -> Same
+course -> pick a programme -> upload a matching file -> Upload Result ->
+"Back to Upload Summary" now shows "University of Chester" (not "no
+institute selected") and the URL carries `institute_code=1315&institute_name=
+University+of+Chester" -> "Upload file" again -> Same course -> Upload
+Programme Selection's HEI Programme drop-down now shows all 8 real options,
+not empty.
+
+**58/58** backend, **35/35** frontend tests still pass (no fixtures needed
+changing this time - the fix touches only a `<Link href>` expression, no new
+fields or payload shapes). `npm run lint` / `npm run build` clean.
 
 ### Phase 6 - Testing & Validation
 - Manual end-to-end run of both upload paths using `master_students.csv`-derived

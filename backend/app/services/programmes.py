@@ -28,6 +28,23 @@ def list_programme_choices(session: Session, institute_code: str) -> list[Progra
     return sorted(seen.values(), key=lambda p: (p.nmc_trainingtype, p.nmc_programme, p.nmc_academicroute))
 
 
+def list_programme_titles(session: Session, institute_code: str) -> list[Programme]:
+    """One entry per distinct nmc_aeiprogrammetitle for an institute - unlike
+    list_programme_choices, this does NOT collapse qualification-level variants:
+    Upload Programme Selection's HEI Programme drop-down must show each
+    qualification level's own title separately (e.g. an Apprenticeship route and
+    its Full Time equivalent have different titles even though they share the
+    same training type/programme/academic route).
+    """
+    rows = session.exec(
+        select(Programme).where(Programme.nmc_traininginstitutecode == institute_code)
+    ).all()
+    seen: dict[str, Programme] = {}
+    for row in rows:
+        seen.setdefault(row.nmc_aeiprogrammetitle, row)
+    return sorted(seen.values(), key=lambda p: p.nmc_aeiprogrammetitle)
+
+
 def resolve_programme_name(
     session: Session,
     institute_code: str | None,

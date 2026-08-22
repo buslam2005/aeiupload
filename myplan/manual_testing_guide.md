@@ -120,9 +120,14 @@ enrolled on institute `1315` / training type `R` / programme `SC1` / academic ro
      the programme selection UI.
 
 3. **Alternate path upload** (same course for all students)
+
+   The CSV header below uses the upload file's own column names (see
+   `requirements.md`'s "upload file field mapping"), not the internal
+   `nmc_*` names - `app/services/parsing.py` translates one to the other at
+   parse time.
    ```
    cat > /tmp/alt_ok.csv <<'EOF'
-   nmc_nmcpin,nmc_nmctitlename,nmc_firstname,nmc_maidenname,nmc_lastname,nmc_dateofbirth,nmc_gender,nmc_nationalityname,nmc_countryofbirthname,nmc_email,nmc_addressline1,nmc_addressline2,nmc_addressline3,nmc_city,nmc_postcode,nmc_countryname,nmc_traininginstitutecode,nmc_trainingtype,nmc_programme,nmc_academicroute,nmc_coursestartdate,nmc_courseenddate,nmc_trainingexampassdate,nmc_trainingstartdate,nmc_trainingcompletiondate
+   NMC PIN,Title,First Name,Middle Name,Last Name,Date of Birth,Gender,Nationality,Place of Birth,Email Address,Address Line 1,Address Line 2,Address Line 3,City,Postcode,Country,Institute Code,Training Type,Course Code,Academic Level,Course Start Date,Course End Date,Pass Date,Start Date,End Date
    16H0404E,Miss,ROSE 1,,LEE,20020524,F,Nigerian,Nigeria,2211471@uknmc.org,London Road 1,BOLTON,,Woodford,CM168AH,England,1315,R,SC1,B Nurs (Hons),20200901,20290901,20260812,20220919,20260812
    EOF
    curl -s -F institute_code=1315 -F nmc_trainingtype=R -F nmc_programme=SC1 \
@@ -143,7 +148,7 @@ enrolled on institute `1315` / training type `R` / programme `SC1` / academic ro
 4. **Original path upload** (multiple courses)
    ```
    cat > /tmp/orig.csv <<'EOF'
-   nmc_nmcpin,nmc_nmctitlename,nmc_firstname,nmc_maidenname,nmc_lastname,nmc_dateofbirth,nmc_gender,nmc_nationalityname,nmc_countryofbirthname,nmc_email,nmc_addressline1,nmc_addressline2,nmc_addressline3,nmc_city,nmc_postcode,nmc_countryname,nmc_traininginstitutecode,nmc_trainingtype,nmc_programme,nmc_academicroute,nmc_coursestartdate,nmc_courseenddate,nmc_trainingexampassdate,nmc_trainingstartdate,nmc_trainingcompletiondate
+   NMC PIN,Title,First Name,Middle Name,Last Name,Date of Birth,Gender,Nationality,Place of Birth,Email Address,Address Line 1,Address Line 2,Address Line 3,City,Postcode,Country,Institute Code,Training Type,Course Code,Academic Level,Course Start Date,Course End Date,Pass Date,Start Date,End Date
    16H0404E,Miss,ROSE 1,,LEE,20020524,F,Nigerian,Nigeria,2211471@uknmc.org,London Road 1,BOLTON,,Woodford,CM168AH,England,1315,R,SC1,B Nurs (Hons),20200901,20290901,20260812,20220919,20260812
    16H0405E,Miss,ROSE 2,,LEE,20040321,F,British,England,2211471@uknmc.org,London Road 2,TARPORLEY,CHESHIRE,Woodford,CM160BS,England,1315,R,AN1,B Nurs (Hons),20200901,20290901,20260812,20230918,20260812
    EOF
@@ -207,6 +212,29 @@ shown on the View Details page in tab order), capped at 5; a PIN with no matchin
 `master_students` row at all reports a single `"NMC PIN does not match with
 organization's record."` error rather than attempting further field checks. Full
 rationale is in `developmentplan_execution.md` Phase 3.
+
+**Addendum (2026-08-22): upload file column mapping, two new lookups**
+
+After Phase 4, the requester added an "upload file field mapping" section to
+`requirements.md` specifying the upload file's own column headers (e.g. `NMC
+PIN`, `Course Code`, `Academic Level`) - different from the internal `nmc_*`
+names Phase 3 originally (and wrongly) assumed the file's header row would use
+verbatim. `app/services/parsing.py` now translates via that explicit mapping;
+the two curl examples above use the corrected headers. `Previous Institute
+Code` has no table field and is dropped at parse time.
+
+Two lookups were added to close a gap flagged in the Phase 4 addendum below:
+- `GET /api/programme-titles?institute_code=...` - one entry per distinct
+  `nmc_aeiprogrammetitle` (NOT collapsed by qualification level, unlike
+  `GET /api/programmes`) - backs Upload Programme Selection's HEI Programme
+  drop-down.
+- `GET /api/upload-students/{id}` - a single upload_student row with its
+  resolved `nmc_programmename` - backs the View Details page load.
+  ```
+  curl -s "http://localhost:8008/api/programme-titles?institute_code=1315"
+  ```
+  Expect 8 entries for institute `1315` (one per `AEI_programmes.csv` row for
+  that institute), not the 4 the Revised Programme drop-down uses.
 
 ## Phase 4 - UI Development (visual/structural check, no live data required)
 
@@ -316,24 +344,98 @@ if you'd rather they read differently.
 
 ## Phase 5 - Integration (full click-through, backend + frontend together)
 
-Run the single-port app (`uv run uvicorn app.main:app --port 8008`) and manually
-walk the whole journey in the browser, for **both** paths:
+All 7 pages now call the real backend via `frontend/app/lib/api.ts` (no more
+`mockData.ts` - deleted in this phase, nothing referenced it once wiring was
+complete). Backend: **58/58** pytest tests pass (`cd backend && uv run pytest
+-v`); frontend: **33/33** vitest tests pass (`cd frontend && npm test`, `npm
+run lint`, `npm run build` all clean).
 
-1. First Page -> select institute -> Upload Summary.
-2. Upload Summary -> Upload File -> Upload Path Selection.
-3. Alternate path: pick programme -> upload the all-success test file -> Upload
-   Result shows all rows in Uploaded Records, none in Error Records.
-4. Back to Upload Summary -> Upload File again -> Alternate path -> upload the
-   mismatch test file -> Upload Result shows failures in Error Records with correct
-   messages.
-5. From Error Records: try flow (a) single-row programme fix + resubmit, (b)
-   select-all + bulk revised programme + Submit, (c) View Details -> edit field ->
-   Resubmit. Each must land back on Upload Summary with a new batch row visible.
+Run the single-port app (`cd frontend && npm run build`, then `cd ../backend
+&& rm -rf data && uv run uvicorn app.main:app --port 8008` for a clean seeded
+DB) and manually walk the whole journey in the browser, for **both** paths:
+
+1. First Page -> institute drop-down now loads from `GET /api/institutes`
+   (2 real entries) -> select one -> Upload Summary.
+2. Upload Summary -> starts with "No previous uploads." (real, empty
+   `GET /api/batches`) -> Upload File -> Upload Path Selection.
+3. Alternate path: HEI Programme drop-down now loads the real 8
+   `nmc_aeiprogrammetitle` choices from `GET /api/programme-titles` -> pick
+   one whose institute/programme actually matches a `master_students` row
+   (e.g. "BN (Hons) Children's Nursing" for institute 1315, which is
+   `SC1`/`R`/`B Nurs (Hons)`) -> upload an all-success test file (matching
+   `nmc_nmcpin` for that programme) -> Upload result POSTs to
+   `/api/uploads/alternate-path` and routes to the **real** returned
+   `batchId` (not a hardcoded `1`) -> Uploaded Records shows the row, Error
+   Records is empty.
+4. Back to Upload Summary -> Upload File again -> Alternate path -> upload a
+   file with a deliberately wrong first name for a real PIN -> Upload Result
+   shows it in Error Records with `"First name does not match with
+   organization's record."` and correct real programme-choice options in
+   both Revised Programme drop-downs (from `GET /api/programmes`).
+5. From Error Records, note that "Revised Programme" only fixes a genuine
+   **programme** mismatch - a name/DOB/etc. mismatch needs View Details
+   instead. Verified flows:
+   - **(c) View Details -> edit field -> Resubmit**: opens via
+     `GET /api/upload-students/{id}` (real row, error message correctly
+     shown under the offending field, e.g. First Name); editing the field
+     and clicking Resubmit POSTs the full record to
+     `/api/upload-students/{id}/resubmit-full` and lands on Upload Summary;
+     confirmed via `GET /api/batches/{id}` that the row flipped to
+     `Success`.
+   - **(b) select-all + bulk revised programme + Submit**: on a batch with a
+     genuine Programme mismatch (e.g. original-path file with the wrong
+     `Course Code` for one student), select-all -> pick the correct Revised
+     Programme -> Submit POSTs to
+     `/api/upload-students/resubmit-with-programme` with all selected ids
+     and lands on Upload Summary; confirmed both rows in the batch flip to
+     `Success`.
+   - **(a) single-row programme fix + resubmit**: same endpoint, one id -
+     exercised via the automated test suite
+     (`ErrorRecordsSubgrid.test.tsx`) and by inspection of `resubmitRow` in
+     `ErrorRecordsSubgrid.tsx`, since a real single-programme-mismatch row
+     wasn't separately re-created in the manual pass (the bulk case above
+     covers the same code path).
+   - **Delete**: clicking Delete now calls `DELETE
+     /api/upload-students/{id}` before removing the row from the table -
+     confirmed via `GET /api/batches/{id}` that the row and the batch's
+     totals are gone for real, not just removed from local state; deleting
+     the same id again correctly 404s (no undo).
 6. Repeat steps 2-5 for the Original path (Upload-OriginalPath page instead of
-   Upload Programme Selection).
-7. Confirm Upload Summary's subgrid now lists every batch created above, with
-   correct totals/status, and that "View Details" on a batch row reopens its
-   Upload Result.
+   Upload Programme Selection) - Institute Code/Programme/Academic Route
+   drop-downs now load from `GET /api/institutes` and `GET /api/programmes`.
+   Programme and Academic Route are optional here: "Choose file" and Upload
+   enable as soon as an Institute Code is picked, with no programme chosen
+   at all - confirm a file uploads successfully in that state (fixed after
+   the requester's manual test flagged it originally requiring a programme
+   too; see the Phase 5 addendum in `developmentplan_execution.md`).
+7. Confirm Upload Summary's subgrid lists every batch created above, newest
+   first, with correct totals/status from `GET /api/batches`, and that "View
+   Details" on a batch row reopens its Upload Result via `GET
+   /api/batches/{id}`.
+8. Edge case: visit `/upload-result?batchId=<id-that-does-not-exist>` -
+   shows "Batch not found." rather than crashing (the page distinguishes
+   "still loading" from "confirmed not found").
+9. Institute context after resubmit: from any of the three resubmit flows
+   (single-row, bulk, View Details), confirm Upload Summary's top-right
+   "You are logged in as" block shows the **resubmitted record's own
+   institute** (e.g. "University of Chester"), not "no institute selected" -
+   check the URL too (`?institute_code=...&institute_name=...`). Fixed
+   after the requester's manual test flagged View Details resetting this;
+   the same fix applies to all three flows since they shared the root
+   cause (see the Phase 5 addendum in `developmentplan_execution.md`).
+   Delete was never affected - it doesn't navigate away.
+10. Institute context after a successful upload: from Upload Result,
+    click "Back to Upload Summary" - confirm the top-right institute
+    display shows the **uploaded batch's own institute** (not "no institute
+    selected"), and the URL carries `institute_code`/`institute_name`.
+    Then click "Upload file" again and pick Alternate Path a second time -
+    confirm Upload Programme Selection's HEI Programme drop-down loads all
+    8 real options, not an empty "Select a programme" only. Fixed after the
+    requester's manual test found the "Back to Upload Summary" link was the
+    one remaining bare `/upload-summary` navigation the earlier resubmit
+    fix hadn't reached, which silently starved the next page's programme
+    lookup of an institute code (see Phase 5 addendum 2 in
+    `developmentplan_execution.md`).
 
 ## Phase 6 - Testing & Validation
 

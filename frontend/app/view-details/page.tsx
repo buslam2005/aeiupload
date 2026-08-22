@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageShell from "../components/PageShell";
 import ViewDetailsField from "../components/ViewDetailsField";
 import { primaryButtonClass } from "../components/buttonStyles";
-import { getFieldError, toIsoDate } from "../lib/format";
-import { findMockUploadStudent } from "../lib/mockData";
+import { getFieldError, toIsoDate, uploadSummaryPath } from "../lib/format";
+import { getUploadStudent, resubmitFull, toResubmitFullPayload } from "../lib/api";
 import type { UploadStudent } from "../lib/types";
 
 const TABS = ["1. Student Details", "2. Student Address", "3. Programme Information", "4. Previous Institute"] as const;
@@ -18,12 +18,26 @@ function ViewDetailsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const studentId = Number(searchParams.get("studentId"));
-  const found = findMockUploadStudent(studentId);
 
   const [tab, setTab] = useState<(typeof TABS)[number]>(TABS[0]);
-  const [form, setForm] = useState<UploadStudent | null>(found?.row ?? null);
+  const [form, setForm] = useState<UploadStudent | null | undefined>(undefined);
+  const [resubmitting, setResubmitting] = useState(false);
 
-  if (!found || !form) {
+  useEffect(() => {
+    getUploadStudent(studentId)
+      .then(setForm)
+      .catch(() => setForm(null));
+  }, [studentId]);
+
+  if (form === undefined) {
+    return (
+      <PageShell>
+        <p>Loading...</p>
+      </PageShell>
+    );
+  }
+
+  if (!form) {
     return (
       <PageShell>
         <p>Record not found.</p>
@@ -35,9 +49,15 @@ function ViewDetailsContent() {
     setForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
-  function handleResubmit() {
-    // Phase 5 will POST to /api/upload-students/{id}/resubmit-full here.
-    router.push("/upload-summary");
+  async function handleResubmit() {
+    if (!form) return;
+    setResubmitting(true);
+    try {
+      await resubmitFull(studentId, toResubmitFullPayload(form));
+      router.push(uploadSummaryPath(form.nmc_traininginstitutecode, form.institute_name));
+    } finally {
+      setResubmitting(false);
+    }
   }
 
   return (
@@ -224,8 +244,13 @@ function ViewDetailsContent() {
         <button type="button" className={primaryButtonClass} onClick={() => router.back()}>
           Back
         </button>
-        <button type="button" className={primaryButtonClass} onClick={handleResubmit}>
-          Resubmit
+        <button
+          type="button"
+          className={primaryButtonClass}
+          disabled={resubmitting}
+          onClick={handleResubmit}
+        >
+          {resubmitting ? "Resubmitting..." : "Resubmit"}
         </button>
       </div>
     </PageShell>

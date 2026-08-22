@@ -2,25 +2,43 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { nameLabel, rowProgrammeLabel, toBritishDateTime } from "../lib/format";
+import { nameLabel, rowProgrammeLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
+import { deleteUploadStudent, resubmitWithProgramme } from "../lib/api";
 import type { ProgrammeChoice, UploadStudent } from "../lib/types";
 import { primaryButtonClass } from "./buttonStyles";
 
 interface Props {
   initialRows: UploadStudent[];
   programmeChoices: ProgrammeChoice[];
+  instituteCode: string;
+  instituteName: string | null;
 }
 
 function programmeChoiceKey(choice: ProgrammeChoice): string {
   return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}`;
 }
 
-export default function ErrorRecordsSubgrid({ initialRows, programmeChoices }: Props) {
+function parseProgrammeChoiceKey(key: string): {
+  nmc_trainingtype: string;
+  nmc_programme: string;
+  nmc_academicroute: string;
+} {
+  const [nmc_trainingtype, nmc_programme, nmc_academicroute] = key.split("|");
+  return { nmc_trainingtype, nmc_programme, nmc_academicroute };
+}
+
+export default function ErrorRecordsSubgrid({
+  initialRows,
+  programmeChoices,
+  instituteCode,
+  instituteName,
+}: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkRevisedProgramme, setBulkRevisedProgramme] = useState("");
   const [rowRevisedProgramme, setRowRevisedProgramme] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const allSelected = rows.length > 0 && selectedIds.size === rows.length;
 
@@ -37,17 +55,37 @@ export default function ErrorRecordsSubgrid({ initialRows, programmeChoices }: P
     });
   }
 
-  function resubmit() {
-    // Phase 5 will POST to /api/upload-students/resubmit-with-programme here,
-    // with the selected row id(s) and the chosen revised programme. Phase 4
-    // has no backend wiring yet - the spec's own end state for this action is
-    // "user is directed to Upload Summary page", so that's what we
-    // demonstrate structurally.
-    router.push("/upload-summary");
+  async function resubmitBulk() {
+    if (selectedIds.size === 0 || !bulkRevisedProgramme) return;
+    setSubmitting(true);
+    try {
+      await resubmitWithProgramme({
+        uploadStudentIds: [...selectedIds],
+        ...parseProgrammeChoiceKey(bulkRevisedProgramme),
+      });
+      router.push(uploadSummaryPath(instituteCode, instituteName));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function deleteRow(id: number) {
-    // Phase 5 will DELETE /api/upload-students/{id} here.
+  async function resubmitRow(id: number) {
+    const key = rowRevisedProgramme[id];
+    if (!key) return;
+    setSubmitting(true);
+    try {
+      await resubmitWithProgramme({
+        uploadStudentIds: [id],
+        ...parseProgrammeChoiceKey(key),
+      });
+      router.push(uploadSummaryPath(instituteCode, instituteName));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteRow(id: number) {
+    await deleteUploadStudent(id);
     setRows((prev) => prev.filter((r) => r.id !== id));
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -85,8 +123,8 @@ export default function ErrorRecordsSubgrid({ initialRows, programmeChoices }: P
           <button
             type="button"
             className={primaryButtonClass}
-            disabled={selectedIds.size === 0 || !bulkRevisedProgramme}
-            onClick={resubmit}
+            disabled={selectedIds.size === 0 || !bulkRevisedProgramme || submitting}
+            onClick={resubmitBulk}
           >
             Submit
           </button>
@@ -155,8 +193,8 @@ export default function ErrorRecordsSubgrid({ initialRows, programmeChoices }: P
                   <button
                     type="button"
                     className={primaryButtonClass}
-                    disabled={!rowRevisedProgramme[row.id]}
-                    onClick={resubmit}
+                    disabled={!rowRevisedProgramme[row.id] || submitting}
+                    onClick={() => resubmitRow(row.id)}
                   >
                     Resubmit
                   </button>

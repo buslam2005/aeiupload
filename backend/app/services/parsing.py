@@ -4,38 +4,41 @@ from datetime import date, datetime
 
 from openpyxl import load_workbook
 
-# Column names expected in an uploaded file's header row - mirrors the business
-# columns shared with master_students (nmc_nmcpin is the lookup key, not a
-# match-checked field). A row missing a column here just gets None for it, which
-# surfaces naturally as a mismatch (or, for nmc_nmcpin, as "record not found")
-# during matching - no separate validation step needed at parse time.
-UPLOAD_COLUMNS = [
-    "nmc_nmcpin",
-    "nmc_nmctitlename",
-    "nmc_firstname",
-    "nmc_maidenname",
-    "nmc_lastname",
-    "nmc_dateofbirth",
-    "nmc_gender",
-    "nmc_nationalityname",
-    "nmc_countryofbirthname",
-    "nmc_email",
-    "nmc_addressline1",
-    "nmc_addressline2",
-    "nmc_addressline3",
-    "nmc_city",
-    "nmc_postcode",
-    "nmc_countryname",
-    "nmc_traininginstitutecode",
-    "nmc_trainingtype",
-    "nmc_programme",
-    "nmc_academicroute",
-    "nmc_coursestartdate",
-    "nmc_courseenddate",
-    "nmc_trainingexampassdate",
-    "nmc_trainingstartdate",
-    "nmc_trainingcompletiondate",
-]
+# Maps an uploaded file's own header names to upload_students' business
+# columns, per requirements.md's "upload file field mapping" section - the
+# file's headers are human-readable labels (e.g. "NMC PIN", "Course Code"),
+# not the internal nmc_* names. "Previous Institute Code" has no table field
+# and is intentionally omitted (dropped at parse time). A row missing a column
+# here just gets None for it, which surfaces naturally as a mismatch (or, for
+# nmc_nmcpin, as "record not found") during matching - no separate validation
+# step needed at parse time.
+FILE_COLUMN_TO_FIELD = {
+    "NMC PIN": "nmc_nmcpin",
+    "Title": "nmc_nmctitlename",
+    "First Name": "nmc_firstname",
+    "Middle Name": "nmc_maidenname",
+    "Last Name": "nmc_lastname",
+    "Date of Birth": "nmc_dateofbirth",
+    "Gender": "nmc_gender",
+    "Nationality": "nmc_nationalityname",
+    "Place of Birth": "nmc_countryofbirthname",
+    "Email Address": "nmc_email",
+    "Address Line 1": "nmc_addressline1",
+    "Address Line 2": "nmc_addressline2",
+    "Address Line 3": "nmc_addressline3",
+    "City": "nmc_city",
+    "Postcode": "nmc_postcode",
+    "Country": "nmc_countryname",
+    "Institute Code": "nmc_traininginstitutecode",
+    "Training Type": "nmc_trainingtype",
+    "Course Code": "nmc_programme",
+    "Academic Level": "nmc_academicroute",
+    "Course Start Date": "nmc_coursestartdate",
+    "Course End Date": "nmc_courseenddate",
+    "Pass Date": "nmc_trainingexampassdate",
+    "Start Date": "nmc_trainingstartdate",
+    "End Date": "nmc_trainingcompletiondate",
+}
 
 
 class UnsupportedFileTypeError(ValueError):
@@ -68,7 +71,10 @@ def _parse_csv(content: bytes) -> list[dict[str, str | None]]:
     reader = csv.DictReader(io.StringIO(text))
     rows = []
     for raw_row in reader:
-        cleaned = {key: _clean_cell(raw_row.get(key)) for key in UPLOAD_COLUMNS}
+        cleaned = {
+            field: _clean_cell(raw_row.get(file_column))
+            for file_column, field in FILE_COLUMN_TO_FIELD.items()
+        }
         if any(cleaned.values()):
             rows.append(cleaned)
     return rows
@@ -83,7 +89,10 @@ def _parse_xlsx(content: bytes) -> list[dict[str, str | None]]:
     rows = []
     for raw in rows_iter:
         raw_row = dict(zip(header, raw))
-        cleaned = {key: _clean_cell(raw_row.get(key)) for key in UPLOAD_COLUMNS}
+        cleaned = {
+            field: _clean_cell(raw_row.get(file_column))
+            for file_column, field in FILE_COLUMN_TO_FIELD.items()
+        }
         if any(cleaned.values()):
             rows.append(cleaned)
     return rows

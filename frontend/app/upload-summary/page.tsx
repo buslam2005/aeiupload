@@ -1,20 +1,27 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import PageShell from "../components/PageShell";
 import { disabledButtonClass, primaryButtonClass } from "../components/buttonStyles";
 import { SearchIcon } from "../components/icons";
 import { toBritishDateTime } from "../lib/format";
-import { MOCK_BATCH_SUMMARIES } from "../lib/mockData";
+import { getBatches } from "../lib/api";
+import type { BatchSummary } from "../lib/types";
 
 function UploadSummaryContent() {
   const searchParams = useSearchParams();
   const instituteCode = searchParams.get("institute_code") ?? "";
   const instituteName = searchParams.get("institute_name") ?? "";
 
-  const mostRecent = MOCK_BATCH_SUMMARIES[0];
+  const [batches, setBatches] = useState<BatchSummary[]>([]);
+
+  useEffect(() => {
+    getBatches().then(setBatches);
+  }, []);
+
+  const mostRecent = batches[0];
 
   return (
     <PageShell>
@@ -90,7 +97,7 @@ function UploadSummaryContent() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_BATCH_SUMMARIES.map((batch) => (
+            {batches.map((batch) => (
               <tr key={batch.nmc_uploadbatchid} className="border-b border-brand-border">
                 <td className="py-2 pr-4">{batch.nmc_uploadbatchid}</td>
                 <td className="py-2 pr-4">{toBritishDateTime(batch.nmc_uploadbatchtime)}</td>

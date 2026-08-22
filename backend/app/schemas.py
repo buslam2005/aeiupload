@@ -13,6 +13,13 @@ class ProgrammeChoiceOut(BaseModel):
     nmc_programmename: str
 
 
+class ProgrammeTitleChoiceOut(BaseModel):
+    nmc_trainingtype: str
+    nmc_programme: str
+    nmc_academicroute: str
+    nmc_aeiprogrammetitle: str
+
+
 class UploadStudentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +64,11 @@ class UploadStudentOut(BaseModel):
     # Resolved server-side by joining upload_students' own programme columns
     # against the programmes table - not stored on upload_students itself.
     nmc_programmename: str | None = None
+
+    # Resolved server-side from nmc_traininginstitutecode, same as
+    # BatchSummaryOut.institute_name - lets the frontend restore institute
+    # context (e.g. after a View Details resubmit) without a second fetch.
+    institute_name: str | None = None
 
 
 class BatchSummaryOut(BaseModel):

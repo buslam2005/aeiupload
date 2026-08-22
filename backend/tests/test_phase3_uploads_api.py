@@ -1,10 +1,12 @@
+# Real upload-file column headers, per requirements.md's "upload file field
+# mapping" - not the internal nmc_* names (see app/services/parsing.py).
 CSV_HEADER = (
-    "nmc_nmcpin,nmc_nmctitlename,nmc_firstname,nmc_maidenname,nmc_lastname,nmc_dateofbirth,"
-    "nmc_gender,nmc_nationalityname,nmc_countryofbirthname,nmc_email,nmc_addressline1,"
-    "nmc_addressline2,nmc_addressline3,nmc_city,nmc_postcode,nmc_countryname,"
-    "nmc_traininginstitutecode,nmc_trainingtype,nmc_programme,nmc_academicroute,"
-    "nmc_coursestartdate,nmc_courseenddate,nmc_trainingexampassdate,nmc_trainingstartdate,"
-    "nmc_trainingcompletiondate"
+    "NMC PIN,Title,First Name,Middle Name,Last Name,Date of Birth,"
+    "Gender,Nationality,Place of Birth,Email Address,Address Line 1,"
+    "Address Line 2,Address Line 3,City,Postcode,Country,"
+    "Institute Code,Training Type,Course Code,Academic Level,"
+    "Course Start Date,Course End Date,Pass Date,Start Date,"
+    "End Date"
 )
 
 # 16H0404E's real master record: SC1 / R / B Nurs (Hons) / institute 1315.
