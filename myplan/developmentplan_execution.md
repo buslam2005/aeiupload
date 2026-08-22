@@ -419,6 +419,214 @@ Python's `csv` module: 0 rows differ from their own `.strip()`'d value, in both
 - Unit tests (pytest) for the matching logic covering: full match, single-field
   mismatch (each of the five error slots), and multi-field mismatch.
 
+**Status: Complete (2026-08-22)**
+
+The plan bullets above only give two worked examples ("programme" then "first
+name" as the first two errors) and leave the rest of the design - which fields
+are checked, in what order, how many, what happens when the PIN itself doesn't
+match anything, how the two upload paths differ mechanically, what the API
+surface looks like - unspecified. Every non-obvious decision made to fill those
+gaps is recorded below, each grounded in the requirement docs rather than
+guessed.
+
+**API surface added** (all under `/api`, JSON except the two upload endpoints
+which are `multipart/form-data`):
+- `GET /institutes`, `GET /programmes?institute_code=...` (`app/routers/lookups.py`)
+- `POST /uploads/alternate-path` (form: `institute_code`, `nmc_trainingtype`,
+  `nmc_programme`, `nmc_academicroute`, `file`), `POST /uploads/original-path`
+  (form: `institute_code` mandatory, the three programme fields optional, `file`)
+- `GET /batches`, `GET /batches/{id}` (`app/routers/uploads.py`)
+- `POST /upload-students/resubmit-with-programme` (body: `upload_student_ids: list[int]`
+  + the three programme fields) - **one endpoint for both single-row and bulk
+  resubmission** (flows a/b from the plan): a single-row call is just a
+  1-element id list. Kept as one endpoint rather than two near-duplicates since
+  the logic is identical either way.
+- `POST /upload-students/{id}/resubmit-full` (body: the complete editable
+  record) - flow (c), View Details.
+- `DELETE /upload-students/{id}` - 204, no undo.
+
+**Matching logic design** (`app/services/matching.py`):
+- **Field check order and list**: a combined **Programme** check first (all of
+  `nmc_traininginstitutecode`/`nmc_trainingtype`/`nmc_programme`/
+  `nmc_academicroute` together - a mismatch on any one of them produces the
+  single "Programme does not match..." message, not up to 4 separate ones),
+  matching the plan's own first example. After that, every field shown on the
+  View Details page (`UI_requirements.md`), in the same order as its tabs:
+  Title, First name, Maiden name, Last name, Date of birth, Gender,
+  Nationality, then the 3 address lines, City, Postcode, Country, then the 3
+  course dates. Fields master_students has but View Details never shows
+  (`nmc_email`, `nmc_countryofbirthname`) are **not** checked - a user can't
+  correct what they can't see/edit on that page, so flagging them would be a
+  dead end.
+- **Error slots are filled sequentially, not per-field-fixed.** "that's the
+  first error... write into nmc_error1description... that's the second
+  error... nmc_error2description" (`requirements.md`) reads as "the Nth
+  mismatch found goes in slot N", not "field X always lives in slot Y". A row
+  with only a Last name mismatch gets that message in `nmc_error1description`,
+  not a fixed slot 5. Capped at 5 total (`MAX_ERRORS`); if more than 5 fields
+  actually mismatch, the row is still `Failed` but only the first 5 (in check
+  order above) get a message - the schema only has 5 slots.
+- **PIN not found**: not addressed in the requirement docs at all (they only
+  describe field-by-field mismatches on an already-located master record).
+  Designed as its own outcome: `Failed` with a single message, "NMC PIN does
+  not match with organization's record.", using the same message pattern
+  applied to the PIN field itself, and skipping the other 15 field checks
+  (nothing to compare them against).
+- **Blank equivalence**: `None` (an `Optional` column with nothing seeded) and
+  `""` (an empty string parsed from a CSV cell) are treated as the same
+  "blank" value when comparing - otherwise every upload row with a blank
+  maiden name would falsely mismatch against a master record whose maiden name
+  is stored as `None`. No other normalization (case, whitespace) is applied -
+  upload-file values are already `.strip()`'d at parse time (see below), and
+  master_students is expected clean per the Phase 2 addenda.
+- Comparison is exact/case-sensitive otherwise - this is meant to be a strict
+  verification tool, not fuzzy matching.
+
+**Alternate path vs Original path row construction** - this is the one place
+the two paths actually differ mechanically, and it's what makes "Same course
+for all Students" a genuine shortcut rather than just a UI convenience:
+- **Alternate path**: the row's `nmc_traininginstitutecode`/`nmc_trainingtype`/
+  `nmc_programme`/`nmc_academicroute` are always **overwritten** with the
+  selected programme's values before matching, regardless of what (if
+  anything) the uploaded file has in those columns. This is what
+  "students... are linked to the selected programme" (`requirements.md`
+  Purposes, item A) means in practice - the file doesn't need programme
+  columns at all for this path.
+- **Original path**: every row's own programme fields come from the file,
+  untouched. The selected institute code (mandatory) and optional
+  programme/academic route are stored on the batch for context, exactly as
+  `database_requirements.md` describes them, and used for nothing else -
+  matching the plan's own phrasing, "optional filters only (not forced onto
+  every row)", extended to institute code too since original path is
+  explicitly "Multiple course - Multiple students".
+
+**"Programme" selection is a 4-tuple, not a specific `programmes` row** - the
+Revised Programme / Upload Programme Selection dropdown label
+(`nmc_trainingtype`-`nmc_programme`-`nmc_academicroute`-`nmc_programmename`,
+per `UI_requirements.md`) doesn't include qualification level, so two
+`programmes` rows that only differ by qualification level (e.g. `SC1` `A` vs
+`SC1` `F`) present as **one** selectable choice. `app/services/programmes.py`
+(`list_programme_choices`) deduplicates on exactly those 3 columns. This also
+retroactively confirms the Phase 2 decision not to give `master_students`/
+`upload_students` a hard FK to a specific `programmes.id` row - the UI's own
+concept of "a programme" is inherently ambiguous with respect to qualification
+level, so a plain-business-columns design was the right call, not a shortcut.
+
+**New file beyond the plan's Phase 1 layout**: `app/services/programmes.py` -
+institute/programme lookup and dedup logic, plus a `resolve_programme_name`
+join helper. Kept separate from `services/matching.py` (different concern -
+resolving *which* programme, not validating a row against one) and from the
+routers (reused by both `routers/lookups.py` and `routers/uploads.py`, so it
+doesn't belong to either alone).
+
+**What's server-computed vs left to Phase 4**: resolving *data* that requires
+a join server-side already has - e.g. an upload_student's `nmc_programmename`
+(joined from `programmes` by its own institute/type/programme/route columns,
+since `upload_students` doesn't store a programme name itself), or a batch's
+`institute_name` (joined from `programmes` by `nmc_institutecode`, since
+`upload_batches` only stores the code) - stayed in scope for Phase 3. Pure
+*display string formatting* (concatenating "Name - Code", or
+"trainingtype-programme-route-programmename" with hyphens) was deliberately
+left to Phase 4: it needs no data the frontend won't already have from the raw
+fields, and the plan's own Phase 3 bullets describe "distinct institute (code
++ name)" and "programmes filtered by institute code" - raw data for drop-downs,
+not pre-formatted labels.
+
+**Batch status label**: `database_requirements.md`/`UI_requirements.md` only
+define the `Failed` case ("Status (value is 'Failed' if there's >= 1 record
+with error)"). The non-failed value is never named in the text spec: used
+`"Processing Complete"`, the literal text shown in that state in
+`UploadSummary.png`.
+
+**Line numbers start at 2**: "Line number (row number in the Excel file; no
+column header)" is ambiguous between "1st data row = 1" and "1st data row = 2
+because the header occupies row 1". Went with the latter (`enumerate(rows,
+start=2)` in the upload routers) since that's how row numbers actually look
+when an AEI user reopens their own spreadsheet to fix a flagged row - row 1 is
+always the header there.
+
+**File parsing** (`app/services/parsing.py`): `UPLOAD_COLUMNS` assumes the
+uploaded file's header matches `master_students`' business column names
+exactly (no such template is provided in `requirement_doc/`, so this is an
+inferred convention, consistent with how the sample `master_students.csv` -
+itself representing "a student record" - is shaped). A column missing from
+the file just yields `None` for that row, which then surfaces naturally as a
+mismatch (or "PIN not found") during matching - no separate upload-time
+validation step needed. Cell values are `.strip()`'d and blank cells become
+`None`; `.xlsx` date-formatted cells (which openpyxl returns as `datetime`/
+`date` objects) are converted to the same `YYYYMMDD` string form the CSVs use,
+so both file types feed matching identically. This trimming is a deliberate,
+narrow exception to "don't program defensively" - CLAUDE.md's own carve-out is
+"validate at system boundaries", and an uploaded file is exactly that; nothing
+else is auto-corrected.
+
+**Noted for Phase 4, not acted on now**: `UI_requirements.md`'s View Details
+tab 1 maps "Nationality" to `nmc_country` - no such column exists on
+`master_students`/`upload_students` (it's `nmc_nationalityname`). Treated as a
+doc typo; Phase 4 should bind the Nationality field to `nmc_nationalityname`.
+
+**Troubleshooting (with evidence):**
+- **StaticPool bug in the new test fixture.** The first version of
+  `tests/conftest.py`'s `client` fixture created and seeded an in-memory
+  `sqlite://` engine, then overrode `get_session` to open new `Session(engine)`
+  connections per request. All 20 of the new API tests failed with `no such
+  table: upload_batches`. Root cause: a bare `sqlite://` in-memory database only
+  exists for the lifetime of one connection - each new `Session` opened a
+  *different*, empty, table-less database, invisible to the one that had
+  created and seeded the schema. Fixed by adding `poolclass=StaticPool` (the
+  documented SQLAlchemy fix for sharing one in-memory SQLite database across
+  multiple connections/sessions). All tests passed immediately after.
+- **Resubmit-with-programme partial-failure behaviour verified, not assumed.**
+  When a bulk resubmit request's id list contains one valid id followed by an
+  invalid one, does the valid row's fix get silently persisted before the
+  request 404s? Reasoned that no - `get_session`'s `with Session(engine) as
+  session: yield session` closes (and thus rolls back any uncommitted
+  transaction on) the session when the request handler exits via exception,
+  and `resubmit_with_programme` never calls `session.commit()` until the whole
+  loop succeeds - then wrote
+  `test_resubmit_with_programme_unknown_id_is_404_and_does_not_partially_apply`
+  to check it directly rather than trust the reasoning alone. Passed on the
+  first run.
+- **Manually walked every command in the `manual_testing_guide.md` Phase 3
+  section against a live server before finalizing it**, exactly as written,
+  and found one real doc bug this way: the original `resubmit-full` example
+  omitted several fields (address lines, course dates, nationality, etc.).
+  Since that endpoint treats the request body as the complete corrected
+  record (any omitted field is set to blank), the omitted fields - which are
+  genuinely populated on the master record - became fresh mismatches, and the
+  row came back `Failed` instead of the guide's claimed `Success`. Fixed by
+  sending the complete field set (confirmed `Success` afterward) and rewrote
+  the guide to explain why, using the failure itself as the illustration
+  rather than hiding it.
+
+**Verification performed:**
+- `uv run pytest -v`: **52/52 pass** - 15 carried over from Phases 1-2, plus
+  `tests/test_phase3_matching.py` (10: full match; PIN not found; Programme
+  mismatch alone, including an institute-only difference still counting as one
+  Programme error; First/Last name/DOB/Gender mismatches alone; None-vs-empty
+  blank equivalence; 5-mismatch cap in check order), `tests/test_phase3_parsing.py`
+  (6: CSV/XLSX basic parsing, blank-row skipping, whitespace trimming, XLSX
+  date-object conversion, unsupported extension), and
+  `tests/test_phase3_uploads_api.py` (21, via a new `tests/conftest.py`
+  isolated-DB `client` fixture: lookups incl. qualification-level dedup,
+  both upload paths incl. the alternate-path override / original-path
+  no-override behaviours, unsupported file type -> 400, empty file -> 0
+  records, batch listing/detail incl. 404, all three resubmission flows, the
+  partial-failure check above, delete incl. no-undo).
+- Manual, ad hoc verification beyond the automated suite: a real `.xlsx` file
+  uploaded through the actual router (not just the parser in isolation) with a
+  `datetime.date` cell, confirmed correctly converted and matched.
+- Live-server pass: fresh `uv run uvicorn app.main:app --port 8008`, confirmed
+  `/api/institutes`, `/api/health`, and `/` (still serving the frontend) all
+  respond correctly through the real process/port.
+- Every command in `manual_testing_guide.md`'s Phase 3 section run against a
+  live server end-to-end, output compared line-by-line against what the guide
+  claims (see the `resubmit-full` bug above - the guide is now accurate to
+  what actually happens, not just what was intended).
+
+**Deliverable state:** ready for the manual checks in `manual_testing_guide.md`
+Phase 3 section before starting Phase 4.
+
 ### Phase 4 - UI Development
 Build each page from `UI_requirements.md` and its named diagram, keeping consistent
 spacing/layout across pages and stripping NMC-specific chrome per the Generate Notes

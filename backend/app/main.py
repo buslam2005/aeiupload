@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
 
 from app.db import create_db_and_tables
+from app.routers import lookups, uploads
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "out"
@@ -24,6 +25,10 @@ app = FastAPI(title="AEI Student Upload", lifespan=lifespan)
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+app.include_router(lookups.router, prefix="/api")
+app.include_router(uploads.router, prefix="/api")
 
 
 app.mount(
