@@ -49,7 +49,9 @@ def _match_and_set_status(session: Session, row: UploadStudent) -> None:
         setattr(row, field, errors[i] if i < len(errors) else None)
 
 
-def _institute_name(session: Session, institute_code: str) -> str | None:
+def _institute_name(session: Session, institute_code: str | None) -> str | None:
+    if institute_code is None:
+        return None
     return dict(list_institutes(session)).get(institute_code)
 
 
@@ -62,6 +64,7 @@ def _to_out(session: Session, row: UploadStudent) -> UploadStudentOut:
         row.nmc_programme,
         row.nmc_academicroute,
     )
+    out.institute_name = _institute_name(session, row.nmc_traininginstitutecode)
     return out
 
 
@@ -208,6 +211,14 @@ def get_batch(batch_id: int, session: Session = Depends(get_session)):
     if batch is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     return _batch_detail(session, batch)
+
+
+@router.get("/upload-students/{student_id}", response_model=UploadStudentOut)
+def get_upload_student(student_id: int, session: Session = Depends(get_session)):
+    row = session.get(UploadStudent, student_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="upload_student not found")
+    return _to_out(session, row)
 
 
 @router.post("/upload-students/resubmit-with-programme", response_model=list[UploadStudentOut])

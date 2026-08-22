@@ -6,7 +6,7 @@ from openpyxl import Workbook
 
 from app.services.parsing import UnsupportedFileTypeError, parse_upload_file
 
-CSV_HEADER = "nmc_nmcpin,nmc_firstname,nmc_lastname,nmc_traininginstitutecode"
+CSV_HEADER = "NMC PIN,First Name,Last Name,Institute Code"
 
 
 def test_parse_csv_basic_rows():
@@ -32,10 +32,18 @@ def test_parse_csv_trims_whitespace():
     assert rows[0]["nmc_firstname"] == "ROSE 1"
 
 
+def test_parse_csv_ignores_previous_institute_code_column():
+    content = ("NMC PIN,Previous Institute Code\n16H0404E,9999\n").encode()
+    rows = parse_upload_file("students.csv", content)
+    assert rows[0]["nmc_nmcpin"] == "16H0404E"
+    assert "nmc_previousinstitutecode" not in rows[0]
+    assert "Previous Institute Code" not in rows[0]
+
+
 def test_parse_xlsx_basic_rows_and_date_conversion():
     wb = Workbook()
     ws = wb.active
-    ws.append(["nmc_nmcpin", "nmc_firstname", "nmc_lastname", "nmc_dateofbirth"])
+    ws.append(["NMC PIN", "First Name", "Last Name", "Date of Birth"])
     ws.append(["16H0404E", "ROSE 1", "LEE", date(2002, 5, 24)])
     ws.append(["16H0405E", "ROSE 2", "LEE", "20040321"])
     buf = io.BytesIO()
@@ -50,7 +58,7 @@ def test_parse_xlsx_basic_rows_and_date_conversion():
 def test_parse_xlsx_skips_fully_blank_rows():
     wb = Workbook()
     ws = wb.active
-    ws.append(["nmc_nmcpin", "nmc_firstname"])
+    ws.append(["NMC PIN", "First Name"])
     ws.append(["16H0404E", "ROSE 1"])
     ws.append([None, None])
     ws.append(["16H0405E", "ROSE 2"])
