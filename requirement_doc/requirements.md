@@ -24,6 +24,7 @@ This web app is only a prototype to illustrate new features listed below.
     - then the user uploads a file (populated data in an Excel/ CSV).
 5. in the backend, the web app
     - stores each row of the file into  'upload students' table
+    - refer to section 'upload file field mapping' for mapping file columns to fields of Upload Students table.
     - if all attributes of 'upload students' table row match with a row in 'master students' table, nmc_rowstatus is updated to 'Success'. 
     - else it's updated to 'Failed', and mark the mistatch in fields nmc_error1description to nmc_error5description, say
         - programme of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'Programme does not match with organization's record.' into field nmc_error1description.
@@ -62,6 +63,35 @@ refer to @database_requirements.md in /requirement_doc
 
 ## user interface requirmeents
 refer to @UI_requirements.md in /requirement_doc
+
+## upload file field mapping
+- file column name -> field in Upload Students table
+- NMC PIN->nmc_nmcpin
+- Title->nmc_nmctitlename 
+- First Name->nmc_firstname
+- Middle Name->nmc_maidenname
+- Last Name->nmc_lastname
+- Date of Birth->nmc_dateofbirth
+- Gender->nmc_gender
+- Nationality->nmc_nationalityname
+- Place of Birth->nmc_countryofbirthname
+- Email Address->nmc_email
+- Address Line 1->nmc_addressline1
+- Address Line 2->nmc_addressline2
+- Address Line 3->nmc_addressline3
+- City->nmc_city
+- Postcode->nmc_postcode
+- Country->nmc_countryname
+- Institute Code->nmc_traininginstitutecode
+- Training Type->nmc_trainingtype
+- Course Code->nmc_programme 
+- Academic Level->nmc_academicroute 
+- Course Start Date->nmc_coursestartdate
+- Course End Date->nmc_courseenddate 
+- Pass Date->nmc_trainingexampassdate
+- Previous Institute Code-> no table field
+- Start Date->nmc_trainingstartdate
+- End Date->nmc_trainingcompletiondate
 
 ## General Notes
 - No user authentication and identification access management for this webapp
