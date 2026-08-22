@@ -6,10 +6,16 @@ This document depcists UI requirements of each page of the web app (portal), and
     - A. An additional path which AEI user will pick a single programme, and then upload student records are linked to the selected programme
     - B. Enhanced functional to review error uploaded student records, and to provide a shortcut of correction by picking another programme from the subgrid.
 
+- the elements of each page must follow the diagram with name specified. Diagrams are stored in /requirement_doc/diagrams/
+- spacing and layout of elements of each page should be consistent when user navigates across pages.
+- for the colour scheme, follow https://www.nmc.org.uk/education/approved-programmes/
+
+
 ## FirstPage.png
 - This is the landing page - First Page
 - This is the start of the user journey. Firstly the user has to select an institute from the drop-down list.
 - Candidates of the drop-down list are made up of concatenate of Institute Name + ' - ' + Institute Code
+    - distinct list of instiute name, institeu code is shown in the drop-down list
 
 ## UploadSummary.png
 - This is the second page - Upload Summary page
