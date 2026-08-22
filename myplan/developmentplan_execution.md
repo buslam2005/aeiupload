@@ -658,6 +658,291 @@ Search disabled).
 - Colour palette approximated from the NMC education pages reference, applied
   consistently, without using NMC logo/copy.
 
+**Status: Complete (2026-08-22)**
+
+Phase 4 is explicitly UI-structure-only per this plan (Phase 5 is where pages
+get wired to the real API), so every page runs on hardcoded mock data in
+`frontend/app/lib/mockData.ts` - shaped **exactly** like the real Phase 3 API
+response types (mirrored in `frontend/app/lib/types.ts`), so Phase 5 should be
+a like-for-like swap of mock arrays for `fetch()` calls, not a rewrite.
+
+**Pages built** (all under `frontend/app/`, each a route folder with a single
+`page.tsx`): `/` (First Page), `upload-summary/`, `upload-path-selection/`,
+`upload-programme-selection/`, `upload-original-path/`, `upload-result/`,
+`view-details/`. Shared pieces: `components/PageShell.tsx` (header),
+`components/buttonStyles.ts`, `components/GuidanceBox.tsx`,
+`components/ErrorRecordsSubgrid.tsx`, `components/ViewDetailsField.tsx`,
+`lib/format.ts` (all display formatting/transform logic), `lib/types.ts`,
+`lib/mockData.ts`.
+
+**Navigation state**: every cross-page value (institute code/name, batch id,
+student id) travels as a **URL query parameter**, not React Context or
+`localStorage`. No auth/session exists per the requirements, so this keeps
+every page's data dependency explicit and bookmarkable, and needed no new
+state-management dependency. Every page reading `useSearchParams()` is wrapped
+in `<Suspense>` (required for Next's static export - a page calling
+`useSearchParams()` without one fails to prerender).
+
+**Header/footer**: replaced entirely with one purple bar reading "Prototype" -
+no logo image, no Contact Us/Help/Home/Account Services/Log Out links, no
+footer at all. `requirements.md`'s General Notes say both "Do not show 'NMC'.
+Replace NMC logo and shortform by 'Prototype'" and "links in the page header
+and footer are not needed" - taken together and applied literally, there was
+nothing left of the diagrams' header/footer chrome to keep except the branding
+band itself.
+
+**Design decisions beyond the diagrams/spec** (each with its reasoning, so
+Phase 5/6 knows what's deliberate vs. what to revisit):
+- **Upload Path Selection reconciled with Back/Next.** `UI_requirements.md`'s
+  prose says the two square buttons "lead to" their respective paths directly,
+  but the diagram also shows Back/Next below them. Implemented as: clicking a
+  square *selects* it (highlighted state), Next (disabled until a selection
+  exists) navigates, Back returns to Upload Summary - matches the diagram
+  exactly and is a strict superset of the prose description.
+- **"Next" became "Upload" on the two upload-start pages.** The base diagrams
+  for Upload Programme Selection and Upload-OriginalPath predate the
+  "Additional elements" instructions that add a file picker + Upload button to
+  each. Once that button exists, a separate "Next" doing nothing but advancing
+  the same step is redundant, so Upload replaces it (still gated - disabled
+  until the required selections and a file are present).
+- **Upload-OriginalPath's Institute Code pre-fills from First Page's
+  selection but stays changeable.** The spec mandates a fresh Institute Code
+  selection on this page without saying whether it should inherit the
+  session's institute - defaulting to it is the lower-friction, almost-always-
+  correct choice while still allowing the literal "select the institute code"
+  requirement.
+- **Batch status "Processing Complete".** `database_requirements.md` /
+  `UI_requirements.md` only define the `Failed` case in words; used the exact
+  text `UploadSummary.png` shows for an all-success batch, same choice already
+  made and tested in Phase 3's `_batch_summary()`.
+- **Gender shown/edited as "Male"/"Female" in View Details, not the stored
+  `M`/`F`.** Read directly off `ViewDetails.png` ("Gender: Male"), even though
+  every other layer of this system (DB, API, matching messages) uses the
+  single-letter code - a display-only mapping local to that one page
+  (`GENDER_LABELS`/`GENDER_CODES` in `view-details/page.tsx`), converted back
+  to the code before the (future, Phase 5) resubmit call.
+- **"Nationality" bound to `nmc_nationalityname`, not `nmc_country`.**
+  `UI_requirements.md`'s View Details tab 1 literally says "Natoinality -
+  nmc_country", but no such column exists anywhere in the schema (it's
+  `nmc_nationalityname`) - flagged as a probable doc typo back in the Phase 3
+  log, resolved here as anticipated.
+- **Two UI simplifications from the diagrams, both same-options-different-
+  presentation:** the Error Records subgrid's "View Details / Delete"
+  drop-down button (`ErrorRecordsSubgrid.png`) is two always-visible inline
+  actions instead of a hidden dropdown menu; the single-entry "View Details"
+  drop-down on the Upload Summary batches table (`UploadSummary.png`) is a
+  plain link. Both dropdowns only ever had one meaningful destination each, so
+  the simplification changes presentation, not functionality.
+- **"NMC PIN" / "NMC Programme" field labels kept as literal text**, even
+  though the General Notes say "Do not show 'NMC'". Read that note as
+  targeting the organisation's brand identity (the instruction's own wording
+  is "NMC logo and **shortform**" - i.e. don't refer to the organisation by
+  name/logo), not the exact field-mapping text `UI_requirements.md` spells out
+  field-by-field elsewhere ("NMC PIN - nmc_nmcpin", "NMC Programme -
+  nmc_programme", and "NMC PIN" as an Error Records column header). Genuinely
+  ambiguous - flagged in `manual_testing_guide.md` for the requester to
+  overrule if the intent was broader text scrubbing.
+- **Both subgrids' "infinite scroll, ~4 rows visible"** implemented as a
+  `max-h-56 overflow-y-auto` scrollable region around an already-fully-loaded
+  table, not paginated fetch-on-scroll - every row is already in memory (mock
+  now, a single API response later), so a plain scroll container satisfies
+  "no need to click a button to see the next 4 rows" without inventing
+  pagination machinery this prototype doesn't need.
+- **Uploaded Records subgrid's columns** (Line Number, Name, NMC PIN, Created
+  On, Programme) were designed from scratch - `UI_requirements.md` never gives
+  this subgrid its own column list (only Error Records gets one, under
+  Enhancement 2); the diagram's shared header row includes Error
+  Records-specific columns (Message Type, Error Type) that don't apply to a
+  successful row, so they were dropped here rather than shown meaningless for
+  every success row.
+
+**Tooling added**: Vitest + React Testing Library + jsdom
+(`vitest.config.mts`, `vitest.setup.ts`, `npm test`). Chosen over relying on
+manual/browser checks alone so the pure formatting logic (`lib/format.ts`) and
+the most complex interactive component (`ErrorRecordsSubgrid`) have a fast,
+repeatable regression check, matching the "detailed unit test" bar set in
+Phases 1-3.
+
+**Troubleshooting (with evidence):**
+- **Missing DOM cleanup between tests.** The first version of
+  `ErrorRecordsSubgrid.test.tsx` had 2 of 6 tests fail with "found multiple
+  elements" errors that made no sense from the component's source (only one
+  "Submit" button exists). Root cause: `vitest.setup.ts` only imported
+  `@testing-library/jest-dom/vitest` - nothing was calling
+  `@testing-library/react`'s `cleanup()` between tests, so every `render()` in
+  a later test added to, rather than replaced, the previous test's DOM output,
+  and duplicate elements accumulated across the file. Fixed by adding an
+  `afterEach(() => cleanup())` in the setup file; all tests passed immediately
+  after, and the fix is structural (applies to every future test file), not a
+  one-off workaround for this one file.
+- **Config warning cleanup.** `vitest.config.ts` triggered a Vite warning
+  about ESM-in-a-CommonJS-loaded-file; renamed to `vitest.config.mts` (no
+  other change) to resolve it cleanly rather than suppress the warning or add
+  `"type": "module"` to `package.json` (which would affect the whole project,
+  not just this one config file).
+- **ESLint unused-var warnings fixed at the source, not suppressed.** Two
+  warnings (`_ids` in `ErrorRecordsSubgrid`'s `resubmit`, two destructured-
+  and-discarded fields in `mockData.ts`) were fixed by actually removing the
+  unused parameter and by replacing a destructure-and-spread with a named
+  `toBatchSummary()` helper, rather than reaching for
+  `eslint-disable`/underscore-ignore config changes.
+
+**Verification performed:**
+- `npm run lint` - clean. `npm run build` - clean, all 7 routes prerendered as
+  static content. `npm test` - **20/20 pass** (14 `lib/format.ts` tests
+  covering every formatting/transform function including a BST-vs-GMT
+  `Intl.DateTimeFormat` check across the DST boundary; 5 `ErrorRecordsSubgrid`
+  tests covering row rendering, the empty state, select-all toggling both
+  directions, delete-removes-the-row, and the bulk Submit disabled-state gate;
+  1 First Page test covering the disabled-until-selected Continue button and
+  the exact query string it navigates with).
+- Backend's full suite re-run to confirm no regression from this phase (none
+  expected - no backend files touched): **52/52 still pass.**
+- Full live browser walkthrough (Playwright MCP) against the real single-port
+  server (`uv run uvicorn app.main:app --port 8008`, frontend
+  production-built first): First Page -> select institute -> Upload Summary ->
+  Upload Path Selection (verified Next stays disabled until a square is
+  picked) -> Upload Programme Selection (verified the programme drop-down
+  has exactly 4 choices for institute `1315`, uploaded a real file through the
+  actual file-picker UI, Upload enabled only once both selections exist) ->
+  Upload Result for the resulting batch -> navigated directly to the
+  mixed-result batch to exercise a populated Error Records subgrid -> View
+  Details on the failed row (confirmed the red inline error message renders
+  under First Name specifically, DOB shows as `2002-05-24`, Gender shows as
+  "Female") -> cycled all 4 tabs -> Resubmit -> landed back on Upload Summary,
+  matching the spec's stated end state. Also independently loaded
+  Upload-OriginalPath and confirmed the Institute Code pre-fill/override
+  behaviour. Screenshots taken and inspected at several of these steps to
+  confirm the colour palette and disabled-state styling read correctly, not
+  just the accessibility tree.
+
+**Deliverable state:** ready for the manual checks in `manual_testing_guide.md`
+Phase 4 section before starting Phase 5. Two judgment calls are flagged there
+for the requester to confirm or overrule: the "NMC PIN"/"NMC Programme" field
+labels, and the two dropdown-to-inline-actions simplifications.
+
+**Addendum (2026-08-22): post-manual-test amendments**
+
+Manual test passed; the requester asked for 7 follow-up amendments (a-g).
+All implemented, verified live (Playwright), and the full suite re-run clean.
+
+- **(a) Upload Summary Search -> magnifying glass icon.** The disabled search
+  `<input>` no longer carries "Search" as visible placeholder text; a second,
+  equally-disabled icon-only button (`components/icons.tsx`'s `SearchIcon`,
+  `aria-label="Search"`) sits next to it. Both stay non-interactive - this is
+  additive styling, not a new control.
+- **(b) Upload Path Selection - right-aligned square text.** The two square
+  buttons were `flex-col items-center justify-center text-center`; since
+  `flex-col`'s cross-axis is horizontal, the fix was `items-end` (not
+  `justify-end`, which would have pushed content to the bottom instead - caught
+  before shipping by remembering flex-col swaps which axis is which) plus
+  `text-right` so wrapped text stays right-aligned on every line. `h-32 w-40`
+  (the squares' size) untouched, per "keep the size".
+- **(c) Upload Programme Selection.** Two changes:
+  - "Choose file" is now an icon button (new shared
+    `components/FilePickerIcon.tsx`: a visually-hidden real `<input
+    type="file">` plus a styled icon button that calls `.click()` on it -
+    the standard pattern for a custom-styled native file input), disabled
+    until a programme is selected, and clearing any previously-chosen file
+    when the programme selection changes (avoids a stale file surviving a
+    now-invalid selection).
+  - **HEI Programme now lists distinct `nmc_aeiprogrammetitle` values**, not
+    the training-type/programme/route/programme-name label used elsewhere.
+    This is a real behavioural change, not just a label swap: `programmes`
+    rows that share training type + programme + academic route but differ by
+    qualification level (e.g. `SC1`'s Apprenticeship vs Full Time variants)
+    have **different** `nmc_aeiprogrammetitle` values, so this drop-down now
+    shows **8** entries for institute `1315`, not the 4 the Revised Programme
+    drop-down shows - deliberately, since picking the exact qualification
+    variant here is more useful for matching an upload file than the coarser
+    3-tuple choice. New mock data (`MOCK_PROGRAMME_TITLES` in
+    `lib/mockData.ts`, one entry per real seed-data programme row) and type
+    (`ProgrammeTitleChoice`) added for this - **flagging a Phase 5 backend
+    gap**: the current `GET /api/programmes` (Phase 3) collapses qualification
+    level away by design (see that phase's log entry), so it cannot serve this
+    page as-is; Phase 5 will need either a variant of that endpoint or an
+    additional one that returns ungrouped rows with `nmc_aeiprogrammetitle`
+    and `nmc_qualificationlevel`.
+  - The de-dup-by-key logic was factored out into a small tested
+    `distinctBy()` helper in `lib/format.ts` rather than left as inline
+    `Set` bookkeeping in the page component, once it became clear the same
+    shape of logic was worth reusing/testing directly.
+- **(d) Upload-OriginalPath - same file-picker-icon treatment**, gated on
+  **Programme** specifically (not Institute Code, which was already
+  mandatory) - a deliberate UX nudge to make sure the course-code check the
+  guidance text describes actually happens before a file can be chosen, even
+  though Programme remains a non-applied filter for the actual upload
+  processing (per Phase 3's original path design). Upload's own disabled
+  condition was widened to `!instituteCode || !programme || !file` to match,
+  and choosing a different institute or programme now clears any previously
+  picked file.
+- **(e) Upload Summary / Error Records.**
+  `UI_requirements.md`'s Enhancement 2 column list already had the
+  "checkbox in the leftmost of each row" bullet added (the requester's own
+  edit, present before this amendment request landed - left as-is, nothing
+  to change there). The top controls were restacked from one wrapped row into
+  two: "select all" alone on its own line, "Revised Programme" + the
+  drop-down + Submit on the line underneath.
+- **(f) View Details - darker inactive tab text.** Was reusing
+  `--brand-disabled-text` (`#9ca3af`, quite light); added a dedicated
+  `--brand-tab-inactive` (`#4b5563`) token in `globals.css` instead of reusing
+  the disabled-state colour for an active, clickable tab - those are different
+  states and shouldn't share a token just because both used to look similar.
+- **(g) Footer on every page.** New `components/PageFooter.tsx`, added once
+  inside `PageShell.tsx` so all 7 pages get it automatically. Static
+  approximation of `requirement_doc/diagrams/PageFooter.png` (which the
+  requester had placed at the repo root - moved to `requirement_doc/diagrams/`
+  to sit alongside every other diagram): tagline, "Our values" plus 3 link-
+  style columns, a "Follow us" row of 4 decorative icons, and a legal line -
+  all plain text/`<span>`/`<li>`, no `<a>` anywhere, confirmed in the
+  Playwright accessibility snapshot (no `link` roles inside the footer).
+  Exact substitutions applied: "The Nursing and Midwifery Council 2026" ->
+  "The UK Health Council", "The NMC" -> "The UKN", "867,000" -> "867" (and the
+  diagram's "- Learn more" phrase dropped along with it, since a "Learn more"
+  reads as an implied link and the instruction was explicit: no links). The 4
+  "social" icons are deliberately abstract/generic shapes
+  (`components/icons.tsx`'s `DecorativeIcon`), not reproductions of any real
+  platform's logo.
+- Left untouched, on purpose: the in-progress, uncommitted "upload file field
+  mapping" section the requester had already started drafting in
+  `requirements.md`/`UI_requirements.md` before this message (empty right-hand
+  sides in the mapping table) - unrelated to amendments (a)-(g) and clearly
+  the requester's own unfinished work, not something to complete or revert.
+
+**Verification for this addendum:** `npm run lint`/`npm run build` clean;
+`npm test` - **24/24 pass** (20 from the phase's initial build + 4 new:
+`distinctBy` behaviour, and `FilePickerIcon`'s disabled/enabled states).
+Backend's 52 tests re-confirmed unaffected (no backend files touched). Full
+Playwright walkthrough of every changed page after rebuilding: confirmed the
+search icon renders next to the (still non-functional) search box; the two
+square buttons keep their `h-32 w-40` footprint with text now right-aligned;
+Upload Programme Selection's HEI Programme drop-down lists exactly the 8
+expected `nmc_aeiprogrammetitle` values for institute `1315` and its file
+icon flips from disabled to enabled the moment a programme is picked (checked
+both states); the same disabled-to-enabled flip verified on Upload-
+OriginalPath gated on Programme; View Details' 3 inactive tab labels read
+visibly darker against white; the Error Records "select all" line and the
+Revised Programme line underneath it render as two separate lines; and the
+footer appears on every page with the exact requested text substitutions
+present and no clickable elements inside it.
+
+**Addendum 2 (2026-08-22): two more alignment tweaks**
+
+- **Upload Summary logged-in block**: changed from one line ("Logged in as
+  User1, University of Chester" + Change button side-by-side) to two
+  right-aligned lines stacked - "You are logged in as User1," on its own
+  line, then the institute name + Change button together on the line
+  underneath, both right-aligned (`flex flex-col items-end text-right`).
+  Matches `UploadSummary.png`'s actual two-line layout more closely than the
+  original single-line version did.
+- **Upload Path Selection squares**: text alignment flipped from right (the
+  previous amendment) to left - `items-end`/`text-right` -> `items-start`/
+  `text-left`. Size (`h-32 w-40`) unchanged, per instruction, both times.
+- Verified live (Playwright, rebuilt frontend + backend on port 8008):
+  screenshots confirm both. `npm run lint`, `npm run build`, `npm test`
+  (24/24, unaffected - no logic changed, only Tailwind alignment classes) all
+  still clean.
+
 ### Phase 5 - Integration
 - Wire each page to its backend endpoint(s) using the typed API client.
 - Implement the full navigation flow exactly as specified: First Page -> Upload
