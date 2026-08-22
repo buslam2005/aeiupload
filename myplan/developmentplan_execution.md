@@ -201,19 +201,195 @@ frontend/
 (Phase 1 section added there) before starting Phase 2.
 
 ### Phase 2 - Database Development
-- Define SQLModel tables per `database_requirements.md`: `programmes`,
-  `master_students`, `upload_students`, `upload_batches`, including system columns
-  (primary keys, foreign keys) not spelled out row-by-row in the doc.
-- Model the stated cardinalities as foreign keys: institute -> programme,
-  programme -> master_student, programme -> upload_batch, upload_batch ->
-  upload_student, upload_student -> master_student (nullable match reference),
-  upload_batch -> upload_file metadata.
-- Write a seed routine that loads `AEI_programmes.csv` into `programmes` and
-  `master_students.csv` into `master_students` on table creation, matching the
-  existing column names exactly (`nmc_traininginstitutecode`, `nmc_nmcpin`, etc.).
-- `upload_students` and `upload_batches` start empty; no seed data.
-- Verify seed data with row counts and a handful of spot-checks against the CSVs
-  (13 programme rows, 251 student rows).
+
+**Status: Complete (2026-08-22)**
+
+- `backend/app/models.py` - four SQLModel tables: `Programme` (`programmes`),
+  `MasterStudent` (`master_students`), `UploadBatch` (`upload_batches`),
+  `UploadStudent` (`upload_students`), columns matching `database_requirements.md`
+  exactly, plus the primary/foreign keys the doc says to add but doesn't spell out.
+  Key decisions, each chosen to avoid inventing a redundant technical column where
+  the doc already implies a natural one:
+  - `MasterStudent.nmc_nmcpin` is the primary key (the doc calls it "the NMC PIN
+    (identifier)"); confirmed unique across all 252 seed rows before committing to
+    this.
+  - `UploadBatch.nmc_uploadbatchid` is the primary key, autoincrement (the doc
+    calls it "a running number", i.e. exactly what an autoincrement PK is - no
+    separate `id` column added on top of it).
+  - `Programme` and `UploadStudent` get a synthetic autoincrement `id` PK - neither
+    table has a natural single-column candidate (a programme's real-world identity
+    is a 5-column composite; the same student can appear in many upload rows).
+  - `UploadStudent.upload_batch_id` is a real FK to `UploadBatch.nmc_uploadbatchid`,
+    covering the `upload_batch (1) <-> (1..n) upload_student` cardinality - not
+    explicitly listed in the doc's own `upload_students` column bullet list, but
+    required by that same doc's cardinality section, so added as exactly the kind
+    of "system attribute for... foreign keys" the doc says to include.
+  - No FK from `master_students`/`upload_students` to `programmes.id`: a
+    programme's business key includes qualification level, which neither
+    `master_students` nor `upload_students` carries, so there's no
+    unambiguous single programme row to point a hard FK at. Both tables instead
+    store the plain business columns (`nmc_traininginstitutecode`,
+    `nmc_trainingtype`, `nmc_programme`, `nmc_academicroute`), matching the doc's
+    literal column lists; Phase 3 matching logic looks programmes up by these
+    columns rather than by a foreign key.
+  - No `upload_student -> master_student` FK column either: the doc's own
+    `upload_students` column list has no such field, and the relationship is a
+    same-request lookup by `nmc_nmcpin` (the identifier), not a stored link -
+    Phase 3's job.
+  - Every `UploadStudent` business column (everything mirroring `MasterStudent`)
+    is nullable: this table stages raw, possibly-incomplete uploaded rows before
+    validation, so it must be able to hold a row with missing/blank fields rather
+    than reject the insert outright.
+  - `UploadBatch.nmc_filename` added: not in the doc's own `upload_batches` column
+    list, but `UI_requirements.md`'s Upload Summary and Upload Result pages both
+    require a per-batch file name, and the doc's cardinality note
+    (`upload file (1) <-> (1) upload batch`) implies the file's info folds
+    directly into its batch rather than needing a separate `upload_files` table.
+  - `UploadStudent.nmc_linenumber` added: not in the doc's column list either, but
+    `UI_requirements.md`'s Error Records subgrid requires an unlabeled "Line
+    number (row number in the Excel file)" column, and the Upload Result diagram
+    shows the same for Uploaded Records.
+  - SQLite does not enforce foreign keys by default. Added a `PRAGMA
+    foreign_keys=ON` connect-event listener in `app/db.py` so the declared FK is
+    actually enforced, not just documentation - see Troubleshooting below.
+- `backend/app/seed_data/` now holds backend-owned copies of `AEI_programmes.csv`
+  and `master_students.csv` (copied from `requirement_doc/sample_data/`, which
+  stays as the untouched source of truth). Reasoning: the backend should be
+  deployable on its own (relevant again in Phase 7 - cloud deployment), without a
+  runtime dependency on a sibling `requirement_doc/` directory that may not even
+  ship to the cloud host.
+- `backend/app/db.py`: `create_db_and_tables()` now also seeds `programmes` and
+  `master_students`, idempotently - each seed function first checks whether its
+  table already has any row and returns early if so, so restarting the app against
+  an existing DB file never re-inserts or duplicates rows. `upload_batches` and
+  `upload_students` are never seeded, per the plan.
+
+**Troubleshooting / findings (with evidence):**
+- **Corrected seed row counts.** The original plan text said "13 programme rows,
+  251 student rows", based on naive `wc -l` line counts. Parsing both CSVs with
+  Python's `csv` module gives the true counts: **14 programme rows, 252 student
+  rows.** Root cause: neither sample CSV file ends with a trailing newline after
+  its last data row (confirmed via `xxd` on the last bytes of each file), and
+  `wc -l` counts newline characters, so it silently undercounts the last line by
+  one in both files. This is now the expected count everywhere in this plan and in
+  `manual_testing_guide.md`.
+- **Sample data quirks observed while writing the seed check (not "fixed" at the
+  time, loaded faithfully as-is; all three later resolved at the source - see the
+  2026-08-22 addendum below):**
+  - ~~Two `AEI_programmes.csv` rows... blank `nmc_traininginstitutecode`~~ -
+    **resolved**: both rows now carry a real institute code (`1315`).
+  - ~~One `AEI_programmes.csv` row has `nmc_trainingtype` stored as
+    `'F         '`~~ - **resolved** for that row (now `'F'`). Note: this was
+    fixed for the `P2`/training-type-`F` rows specifically; the `DF3`
+    (`'S         '`) and one `1`/`8020` (`'G         '`) rows still carry the same
+    kind of trailing-space padding as of this writing - Phase 3 matching should
+    still treat `nmc_trainingtype` comparisons as whitespace-tolerant rather than
+    assume every row has been cleaned up.
+  - ~~Every single `master_students.csv` row (252/252) has `nmc_institutecode !=
+    nmc_traininginstitutecode`~~ - **resolved by removal**: `nmc_institutecode`
+    was dropped from `master_students.csv` and the `MasterStudent`/`UploadStudent`
+    models entirely, since it was redundant with `nmc_traininginstitutecode`.
+- **FK enforcement gap found and fixed.** First implementation declared the
+  `upload_students.upload_batch_id -> upload_batches.nmc_uploadbatchid` FK but a
+  manual test proved SQLite silently accepted an insert referencing a
+  non-existent batch id (SQLite ignores FK constraints unless a per-connection
+  `PRAGMA foreign_keys=ON` is issued - not the default). Fixed with a
+  `sqlalchemy.event.listens_for(engine, "connect")` hook in `app/db.py`; re-ran
+  the same manual check and confirmed the insert now raises `IntegrityError`.
+- **Test-suite self-check.** Deliberately broke the seeding idempotency guard
+  (commented out the "already seeded" early-return) and confirmed
+  `test_seed_is_idempotent` fails loudly (28 programme rows instead of 14) before
+  reverting - same discipline as the Phase 1 lifespan-test check, to make sure a
+  passing suite reflects a real guarantee rather than a test that can't fail.
+
+**Verification performed:**
+- `backend/tests/test_phase2_database.py` (9 new tests, all against an in-memory
+  SQLite engine with the same FK-enforcement setup as the real app): seed row
+  counts (14 programmes / 252 master students), idempotent double-seed, a
+  programme spot-check (`SC1` resolves to both qualification levels `A` and `F`
+  under institute `1315`), a master-student spot-check (`16H0404E`), both upload
+  tables start empty, the batch PK autoincrements, an upload_student correctly
+  links to its batch, and an upload_student referencing an unknown batch id is
+  rejected. Combined with Phase 1's 4 tests: **13/13 pass.**
+- Live-server pass: fresh `uv run uvicorn app.main:app --port 8008` against a
+  deleted DB file, counts checked independently via the `sqlite3` CLI (not just
+  the app's own ORM) - 14/252/0/0. Restarted the same process against the
+  existing DB file (no delete) - counts unchanged at 14/252, confirming no
+  duplication outside of pytest too.
+
+**Deliverable state:** ready for the manual checks in `manual_testing_guide.md`
+Phase 2 section (row-count expectations there corrected to 14/252 to match the
+finding above) before starting Phase 3.
+
+**Addendum (2026-08-22): source data corrected, `nmc_institutecode` removed**
+
+Following manual test of Phase 2, the requester edited the source sample data
+directly (`requirement_doc/sample_data/`): populated the 2 blank
+`nmc_traininginstitutecode` values in `AEI_programmes.csv` (both now `1315`),
+trimmed the padded `nmc_trainingtype` `'F         '` -> `'F'` for the `P2` rows,
+and removed the `nmc_institutecode` column from `master_students.csv` entirely as
+redundant with `nmc_traininginstitutecode`. Schema and seed data updated to match:
+
+- `backend/app/models.py`: removed `nmc_institutecode` from `MasterStudent` and
+  `UploadStudent` (the latter mirrors the former's attribute set, so it drops too).
+  `UploadBatch.nmc_institutecode` is untouched - that is a different field (the
+  institute selected at the start of the upload journey), not the one removed.
+  Also tightened `Programme.nmc_traininginstitutecode` from optional back to
+  required, now that the source data has no blank values left to accommodate.
+- `backend/app/seed_data/*.csv` refreshed from the corrected
+  `requirement_doc/sample_data/*.csv` (row count unchanged at 14/252 - values
+  fixed, no rows added or removed).
+- Added 3 regression-guard tests to `backend/tests/test_phase2_database.py`:
+  no programme row has a blank institute code, the `P2` rows' training type is
+  exactly `"F"` (not padded) on both rows (they differ by
+  `nmc_qualificationlevel`, `F`/`P`, not by training type - an assertion I
+  initially got imprecise and corrected after checking the actual CSV values
+  again rather than trusting my first assumption), and `MasterStudent` no longer
+  exposes `nmc_institutecode`. **15/15 tests pass.**
+- Re-verified live: fresh `uv run uvicorn ... --port 8008` against a deleted DB,
+  `sqlite3` CLI checks - 14 programmes / 252 master_students, `.schema
+  master_students` shows no `nmc_institutecode` column, `SELECT count(*) FROM
+  programmes WHERE nmc_traininginstitutecode='' ...` returns 0, and the
+  previously-blank `AN1`/qualification-`A` row now resolves to institute `1315`.
+- `requirement_doc/requirements.md` and `requirement_doc/UI_requirements.md`
+  checked (grepped for `nmc_institutecode`, `nmc_trainingtype`, `blank`) - neither
+  references the removed column or the specific data-quality issues, so **no
+  changes needed** in either.
+- `requirement_doc/database_requirements.md` still lists `nmc_institutecode` under
+  `master_students` (line ~56) - **not updated**, since it wasn't in the
+  requester's list of docs to update for this change; flagged back to them rather
+  than edited unilaterally.
+
+**Addendum 2 (2026-08-22): remaining `nmc_trainingtype` padding removed**
+
+The earlier addendum's fix only covered the `P2` rows; the `DF3` rows
+(`'S         '`) and one institute-`8020` `1` row (`'G         '`) still had
+trailing-whitespace padding, as flagged at the time. The requester has now fixed
+all of these in `requirement_doc/sample_data/AEI_programmes.csv` too - every
+`nmc_trainingtype` value across all 14 rows is now unpadded (verified with
+Python's `csv` module: 0 rows differ from their own `.strip()`'d value, in both
+`AEI_programmes.csv` and `master_students.csv`).
+
+- `backend/app/seed_data/AEI_programmes.csv` refreshed from the corrected source.
+- The requester also asked to fix the **already-running dev SQLite database**
+  directly (not just reseed), since the app's seeding is idempotent and won't
+  touch a table that already has rows. Ran `UPDATE programmes SET
+  nmc_trainingtype = TRIM(nmc_trainingtype);` against
+  `backend/data/aei_upload.db` directly via the `sqlite3` CLI. Verified
+  before/after with `SELECT nmc_programme, nmc_qualificationlevel, '[' ||
+  nmc_trainingtype || ']' ...` - `DF3` and the `8020`/`1` row changed from
+  `[S         ]`/`[G         ]` to `[S]`/`[G]`; row count unchanged at 14.
+- `test_p2_programme_training_type_is_not_padded` widened into
+  `test_no_programme_training_type_has_trailing_whitespace` in
+  `test_phase2_database.py`, asserting every seeded programme row's
+  `nmc_trainingtype` equals its own `.strip()`, not just the `P2` rows. **15/15
+  tests still pass** (test count unchanged - one test replaced, not added).
+- Re-verified with a fully fresh DB (deleted, restarted, reseeded from the
+  corrected CSV): `SELECT DISTINCT nmc_trainingtype` now returns exactly `F`,
+  `G`, `M`, `R`, `S` - no padded duplicates.
+- No further doc changes needed in `requirements.md` / `UI_requirements.md` (same
+  grep-based check as the first addendum still holds - neither references
+  training-type padding).
 
 ### Phase 3 - Backend Logic Development
 - **Lookups**: endpoints returning distinct institute (code + name), and programmes
