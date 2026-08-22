@@ -59,20 +59,41 @@ creation should re-run the seed routine from `AEI_programmes.csv` and
 
 ## Phase 2 - Database Development
 
-1. Delete any existing SQLite file, start the backend, confirm it starts without
-   error (seed routine runs on table creation).
-2. Open the SQLite file with a client (`sqlite3 backend/<db file>` or a GUI):
-   - `SELECT count(*) FROM programmes;` -> expect **13** (matches
-     `AEI_programmes.csv` row count minus header).
-   - `SELECT count(*) FROM master_students;` -> expect **251**.
+Backend now seeds from its own copy of the sample data at
+`backend/app/seed_data/` (copied from `requirement_doc/sample_data/`, which is
+unchanged - the backend no longer reads from `requirement_doc/` at runtime).
+
+1. `cd backend && uv run pytest -v` - all 15 tests pass (4 from Phase 1 + 11 in
+   `tests/test_phase2_database.py`).
+2. Delete any existing SQLite file (`rm -rf backend/data`), start the backend,
+   confirm it starts without error (seed routine runs on table creation).
+3. Open the SQLite file with a client (`sqlite3 backend/data/aei_upload.db` or a
+   GUI):
+   - `SELECT count(*) FROM programmes;` -> expect **14** (not 13 - see note below).
+   - `SELECT count(*) FROM master_students;` -> expect **252** (not 251).
    - `SELECT count(*) FROM upload_students;` and `upload_batches` -> expect **0**.
-3. Spot-check a row: pick one line from `AEI_programmes.csv` (e.g. institute code
-   `1315`) and confirm the same row exists in the `programmes` table with matching
-   `nmc_programme`, `nmc_academicroute`, `nmc_aeiprogrammetitle`.
-4. Do the same for one row of `master_students.csv` against `master_students`
-   (e.g. `nmc_nmcpin = 16H0404E`).
-5. Restart the backend a second time without deleting the DB file - confirm it does
-   **not** duplicate seed rows (counts stay the same).
+
+   Note: the row counts in the CSV file names are one higher than a naive `wc -l`
+   would suggest, because neither sample CSV ends with a trailing newline after
+   its last row, which makes `wc -l` undercount by one. 14/252 are the true,
+   `csv`-module-verified counts and what the app actually seeds.
+4. Spot-check a row: pick one line from `AEI_programmes.csv` (e.g. institute code
+   `1315`, programme `SC1`) and confirm the same row exists in the `programmes`
+   table with matching `nmc_academicroute`, `nmc_qualificationlevel`,
+   `nmc_aeiprogrammetitle`. `SC1` should resolve to **two** programme rows under
+   `1315` - one per qualification level (`A` and `F`).
+5. Do the same for one row of `master_students.csv` against `master_students`
+   (e.g. `nmc_nmcpin = 16H0404E` -> first name `ROSE 1`, last name `LEE`,
+   institute code `1315`).
+6. Restart the backend a second time without deleting the DB file - confirm it does
+   **not** duplicate seed rows (counts stay 14/252, not 28/504).
+7. Confirm the sample-data cleanup: `SELECT * FROM programmes WHERE
+   nmc_traininginstitutecode = '';` -> **0 rows** (both previously-blank rows now
+   show institute `1315`); `.schema master_students` -> no `nmc_institutecode`
+   column (removed as redundant with `nmc_traininginstitutecode`); `SELECT DISTINCT
+   nmc_trainingtype FROM programmes;` -> exactly `F`, `G`, `M`, `R`, `S`, each with
+   no trailing whitespace (`'['||nmc_trainingtype||']'` is a quick way to see any
+   padding). All 14 rows are clean now, not just the `P2` ones.
 
 ## Phase 3 - Backend Logic Development
 
