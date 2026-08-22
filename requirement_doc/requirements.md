@@ -57,8 +57,16 @@ This web app is only a prototype to illustrate new features listed below.
 ## Operation Logic of Authorized Signatory
 to be updated.
 
-## Generate Notes
+## database requirements
+refer to @database_requirements.md in /requirement_doc
+
+## user interface requirmeents
+refer to @UI_requirements.md in /requirement_doc
+
+## General Notes
 - No user authentication and identification access management for this webapp
 - This web app is not responsive
 - Do not show 'NMC'. Replace NMC logo and shortform by 'Prototype'
 - links in the page header and footer are not needed.
+- to run in localhost:8008
+- it will firstly built to be run in localhost, but it should be built to be run on a cloud webserver which allows limited users to access the prototype.
