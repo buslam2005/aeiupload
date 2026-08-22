@@ -15,7 +15,7 @@ This document depcists UI requirements of each page of the web app (portal), and
 - This is the landing page - First Page
 - This is the start of the user journey. Firstly the user has to select an institute from the drop-down list.
 - Candidates of the drop-down list are made up of concatenate of Institute Name + ' - ' + Institute Code
-    - distinct list of instiute name, institeu code is shown in the drop-down list
+    - distinct list of instiute name, institeu code is shown in the drop-down list, extracting data from programmes table
 
 ## UploadSummary.png
 - This is the second page - Upload Summary page
@@ -48,6 +48,7 @@ This page is the page after user clicks 'Upload File' button in Upload Summary P
 This page is the next page after user clicks 'Same Course...' button in Upload Summary Page. It's named as Upload Programme Selection page. This is the start of alternate path of upload.
 - user has to select a single programme in the drop-down box.
 - Candidates of the drop-down box are programmes offered by the selected institute. Do not include programmes of other institutes.
+    - drop-down box candidates are distinct programmes of the selected institute, extracted from programmes table.
 
 #### Additional elements:
 - to add a field to allow user to select a file for upload.
