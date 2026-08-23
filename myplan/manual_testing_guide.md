@@ -571,4 +571,8 @@ This phase is the formal pass over everything above plus edge cases:
 - Confirm again: no 'NMC' anywhere, no header/footer links, Search stays disabled,
   Advanced Search stays greyed out.
 - Delete the SQLite file once more and restart, to prove the demo can be reset
-  cleanly before a live demonstration.
+  cleanly before a live demonstration - or, more conveniently (2026-08-23),
+  `cd backend && uv run python -m app.scripts.reset_db` does the same thing
+  in one command without needing to find the file or restart the server. See
+  `myplan/demo_data_reset_guide.md` for this and the upload-history-only
+  purge script.
