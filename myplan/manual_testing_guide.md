@@ -346,8 +346,8 @@ if you'd rather they read differently.
 
 All 7 pages now call the real backend via `frontend/app/lib/api.ts` (no more
 `mockData.ts` - deleted in this phase, nothing referenced it once wiring was
-complete). Backend: **61/61** pytest tests pass (`cd backend && uv run pytest
--v`); frontend: **45/45** vitest tests pass (`cd frontend && npm test`, `npm
+complete). Backend: **73/73** pytest tests pass (`cd backend && uv run pytest
+-v`); frontend: **61/61** vitest tests pass (`cd frontend && npm test`, `npm
 run lint`, `npm run build` all clean).
 
 Run the single-port app (`cd frontend && npm run build`, then `cd ../backend
@@ -466,11 +466,67 @@ DB) and manually walk the whole journey in the browser, for **both** paths:
       concatenation. The bulk "Revised Programme" drop-down above the
       grid is unchanged (still shows the concatenated form) - this was an
       intentional, narrower change to just the per-row column.
+12. **File-upload error handling (2026-08-23)** - see requirements.md's
+    "Error handling at file upload" section for the exact wording, and the
+    matching `developmentplan_execution.md` addendum for root cause. Test on
+    both Upload Programme Selection (alternate path) and Upload-OriginalPath
+    (original path) - rebuild first (`npm run build`) so `frontend/out` is
+    current:
+    - Pick an empty (0-byte) file, or any genuinely corrupted/non-spreadsheet
+      file with a `.csv`/`.xlsx` extension, and click Upload - confirm
+      `"Portal fails to recognize the file. Please check the file before
+      upload it again."` appears directly underneath the file-upload icon,
+      the page does **not** navigate away, and no batch is created (check
+      Upload Summary afterwards).
+    - Pick a file with only a header row (no data rows) and click Upload -
+      confirm `"There is no student record in the file. Please check the
+      file before upload it again."` appears the same way, and no batch is
+      created.
+    - Pick a file whose column headers don't match the portal's expected
+      columns (e.g. a completely unrelated CSV) and click Upload - confirm
+      `"Column header(s) are wrong. Please check the file before upload it
+      again."` appears the same way, and no batch is created.
+    - After any of the above, pick a different (valid) file - confirm the
+      error message disappears immediately, before clicking Upload again.
+    - Confirm a normal, valid file still uploads successfully and navigates
+      to Upload Result exactly as before - this fix must not affect the
+      happy path.
+13. **Institute-context and cross-institute-history fixes (2026-08-23)** -
+    see the matching `developmentplan_execution.md` addendum for root
+    causes. Rebuild first (`npm run build`):
+    - **Wrong-Institute-Code fix**: upload a file (original path) with a row
+      whose Institute Code doesn't match any real institute - confirm the
+      error is `"Institute code does not match with organization's
+      record."`. Open View Details on that row, go to tab 3, correct the
+      Institute Code to a real one (e.g. `1315`), click Resubmit - confirm
+      you land on Upload Summary showing the **correct** institute (not "no
+      institute selected"), and the URL carries
+      `institute_code=...&institute_name=...`. Then click "Upload file" ->
+      "Same course for all Students" -> Next, and confirm the HEI Programme
+      drop-down is populated with real options (this was the second visible
+      symptom of the same bug - it would previously be empty because the
+      institute code carried forward as `""`).
+    - **Cross-institute history fix**: with at least one upload already on
+      record for one institute, go to First Page and select a *different*
+      institute (or use "Change" from Upload Summary) - confirm Upload
+      Summary's subgrid shows only that institute's own batches, none of
+      the other institute's. Switch back and confirm the reverse.
+14. **Country of Birth field added to View Details tab 1 (2026-08-23)** -
+    upload a row with a Place of Birth that doesn't match the master
+    record (everything else matching) - confirm the error is `"Country of
+    birth does not match with organization's record."`. Open View Details
+    on that row: confirm a **Country of Birth** field appears directly
+    underneath Nationality, pre-filled with the uploaded value, editable,
+    and showing that same error message underneath it. Confirm Title is
+    still a plain free-text box (unchanged).
 
 ## Phase 6 - Testing & Validation
 
 This phase is the formal pass over everything above plus edge cases:
-- Empty file upload - confirm a sane response (no crash).
+- Empty/corrupted/wrong-header file upload - confirm the specific error
+  message from requirements.md's "Error handling at file upload" is shown
+  underneath the file-upload icon, not a crash or a silent failure (item 12
+  under Phase 5 above covers this in detail).
 - File with a row missing required fields - confirm it fails cleanly with a
   meaningful error rather than a 500.
 - All 5 error slots individually triggered at least once across your test files.

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deleteUploadStudent,
   getBatch,
+  getBatches,
   getInstitutes,
   resubmitFull,
   resubmitWithProgramme,
@@ -62,9 +63,25 @@ const ROW: UploadStudent = {
 };
 
 describe("apiFetch error handling", () => {
-  it("throws when the response is not ok", async () => {
+  it("throws a generic message when the response is not ok and has no JSON detail", async () => {
     mockFetch({ ok: false, status: 404 });
     await expect(getBatch(999)).rejects.toThrow("/batches/999 failed: 404");
+  });
+
+  it("throws the backend's own detail message when the error response has one", async () => {
+    // FastAPI's HTTPException(detail=...) responses - e.g. the file-upload
+    // error messages from requirements.md's "Error handling at file upload" -
+    // must reach the caller verbatim so it can show the same text to the user.
+    mockFetch({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        detail: "Column header(s) are wrong. Please check the file before upload it again.",
+      }),
+    });
+    await expect(getBatch(999)).rejects.toThrow(
+      "Column header(s) are wrong. Please check the file before upload it again."
+    );
   });
 
   it("returns undefined for a 204 No Content response", async () => {
@@ -78,6 +95,23 @@ describe("getInstitutes", () => {
     const fetchMock = mockFetch({ json: async () => [] });
     await getInstitutes();
     expect(fetchMock).toHaveBeenCalledWith("/api/institutes", undefined);
+  });
+});
+
+describe("getBatches", () => {
+  it("GETs /api/batches scoped to the given institute code", async () => {
+    // Upload Summary is scoped to the selected institute - without this
+    // filter, every institute's upload history would show up regardless of
+    // which one is currently selected.
+    const fetchMock = mockFetch({ json: async () => [] });
+    await getBatches("1315");
+    expect(fetchMock).toHaveBeenCalledWith("/api/batches?institute_code=1315", undefined);
+  });
+
+  it("GETs unfiltered /api/batches when no institute code is given", async () => {
+    const fetchMock = mockFetch({ json: async () => [] });
+    await getBatches();
+    expect(fetchMock).toHaveBeenCalledWith("/api/batches", undefined);
   });
 });
 

@@ -56,8 +56,14 @@ function ViewDetailsContent() {
     if (!form) return;
     setResubmitting(true);
     try {
-      await resubmitFull(studentId, toResubmitFullPayload(form));
-      router.push(uploadSummaryPath(form.nmc_traininginstitutecode, form.institute_name));
+      // Use the server's freshly-resolved institute_name from the response,
+      // not the stale one this page loaded with - if the user just corrected
+      // a wrong Institute Code (the field this tab exists to fix), `form`'s
+      // own institute_name is still resolved from the *old* code and may be
+      // null, which would otherwise send them to Upload Summary with no
+      // institute context at all.
+      const updated = await resubmitFull(studentId, toResubmitFullPayload(form));
+      router.push(uploadSummaryPath(updated.nmc_traininginstitutecode, updated.institute_name));
     } finally {
       setResubmitting(false);
     }
@@ -161,6 +167,12 @@ function ViewDetailsContent() {
               value={form.nmc_nationalityname ?? ""}
               onChange={(v) => set("nmc_nationalityname", v)}
               error={getFieldError(form, "Nationality")}
+            />
+            <ViewDetailsField
+              label="Country of Birth"
+              value={form.nmc_countryofbirthname ?? ""}
+              onChange={(v) => set("nmc_countryofbirthname", v)}
+              error={getFieldError(form, "Country of birth")}
             />
           </div>
         )}

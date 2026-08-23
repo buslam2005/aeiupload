@@ -19,6 +19,7 @@ function UploadProgrammeSelectionContent() {
   const [selectedIndex, setSelectedIndex] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Backed by GET /api/programme-titles, which - unlike GET /api/programmes -
   // does NOT collapse qualification-level variants: the same programme's
@@ -35,6 +36,7 @@ function UploadProgrammeSelectionContent() {
     if (!programmeSelected || !file) return;
     const choice = choices[Number(selectedIndex)];
     setUploading(true);
+    setUploadError(null);
     try {
       const batch = await uploadAlternatePath({
         instituteCode,
@@ -44,6 +46,8 @@ function UploadProgrammeSelectionContent() {
         file,
       });
       router.push(`/upload-result?batchId=${batch.nmc_uploadbatchid}`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
     }
@@ -73,6 +77,7 @@ function UploadProgrammeSelectionContent() {
           onChange={(e) => {
             setSelectedIndex(e.target.value);
             setFile(null);
+            setUploadError(null);
           }}
         >
           <option value="" disabled>
@@ -88,7 +93,16 @@ function UploadProgrammeSelectionContent() {
 
       <div className="mb-6">
         <span className="mb-2 block font-medium">Select a student qualifications file to upload</span>
-        <FilePickerIcon id="file" disabled={!programmeSelected} file={file} onChange={setFile} />
+        <FilePickerIcon
+          id="file"
+          disabled={!programmeSelected}
+          file={file}
+          onChange={(f) => {
+            setFile(f);
+            setUploadError(null);
+          }}
+          error={uploadError}
+        />
       </div>
 
       <div className="flex gap-3">

@@ -25,4 +25,25 @@ describe("FilePickerIcon", () => {
     expect(screen.getByRole("button", { name: "Choose file" })).toBeEnabled();
     expect(screen.getByText("students.csv")).toBeInTheDocument();
   });
+
+  it("shows an error message underneath the icon when given one", () => {
+    render(
+      <FilePickerIcon
+        id="file"
+        disabled={false}
+        file={null}
+        onChange={vi.fn()}
+        error="Portal fails to recognize the file. Please check the file before upload it again."
+      />
+    );
+
+    expect(
+      screen.getByText("Portal fails to recognize the file. Please check the file before upload it again.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows no error message when none is given", () => {
+    render(<FilePickerIcon id="file" disabled={false} file={null} onChange={vi.fn()} />);
+    expect(screen.queryByText(/please check the file/i)).not.toBeInTheDocument();
+  });
 });

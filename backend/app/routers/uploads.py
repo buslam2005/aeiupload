@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlmodel import Session, select
 
 from app.db import get_session
@@ -13,7 +13,7 @@ from app.schemas import (
     UploadStudentOut,
 )
 from app.services.matching import match_student
-from app.services.parsing import UnsupportedFileTypeError, parse_upload_file
+from app.services.parsing import UploadFileError, parse_upload_file
 from app.services.programmes import list_institutes, resolve_programme_name
 
 router = APIRouter()
@@ -103,7 +103,7 @@ async def _read_upload(file: UploadFile) -> list[dict[str, str | None]]:
     content = await file.read()
     try:
         return parse_upload_file(file.filename or "", content)
-    except UnsupportedFileTypeError as exc:
+    except UploadFileError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -198,10 +198,17 @@ async def upload_original_path(
 
 
 @router.get("/batches", response_model=list[BatchSummaryOut])
-def list_batches(session: Session = Depends(get_session)):
-    batches = session.exec(
-        select(UploadBatch).order_by(UploadBatch.nmc_uploadbatchid.desc())
-    ).all()
+def list_batches(
+    institute_code: str | None = Query(None),
+    session: Session = Depends(get_session),
+):
+    # Upload Summary is scoped to "the AEI you're logged in as" - without this
+    # filter every institute's upload history shows up regardless of which
+    # one is selected.
+    query = select(UploadBatch).order_by(UploadBatch.nmc_uploadbatchid.desc())
+    if institute_code:
+        query = query.where(UploadBatch.nmc_institutecode == institute_code)
+    batches = session.exec(query).all()
     return [_batch_summary(session, b) for b in batches]
 
 

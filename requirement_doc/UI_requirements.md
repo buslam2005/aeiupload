@@ -35,6 +35,15 @@ This document depcists UI requirements of each page of the web app (portal), and
     - Successes (no. of records with no error)
     - Error (no. of record with errors)
     - Status (value is 'Failed' if there's >= 1 record with error)
+  - The subgrid only shows upload history for the currently selected institute (the one
+    named in "You are logged in as ... / <institute>") - switching institute (via Change,
+    or arriving with a different institute in the URL) shows that institute's own history,
+    never another institute's.
+  - The selected institute must always carry forward correctly through every navigation
+    that returns to this page - Upload file, Upload Path Selection, Upload Programme
+    Selection/Upload-OriginalPath, and every resubmit flow (bulk, single-row, and View
+    Details). None of them should ever land back here with "no institute selected" while
+    an institute was in fact selected at the start of the journey.
     - down arrow button with drop-down box value 'View Details'
 
 ## UploadPathSelection.png
@@ -52,6 +61,9 @@ This page is the next page after user clicks 'Same Course...' button in Upload S
 #### Additional elements:
 - to add a field to allow user to select a file for upload.
 - once a file is picked, pressing Uplaod button to upload the selected file and process the records in it.
+- if the file fails one of the checks in requirements.md's "Error handling at file upload" section, the
+  matching error message is shown underneath the file-upload icon (not processed) - see "File upload error
+  display" below.
 
 ## Upload-OriginalPath.png
 This page is the next page after user clicks 'Multiple courses...' button, and is the starting point of the original path of upload.
@@ -61,6 +73,19 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 #### Additional elements:
 - to add a field to allow user to select a file for upload.
 - once a file is picked, pressing Uplaod button to upload the selected file and process the records in it.
+- if the file fails one of the checks in requirements.md's "Error handling at file upload" section, the
+  matching error message is shown underneath the file-upload icon (not processed) - see "File upload error
+  display" below.
+
+#### File upload error display (both Upload Programme Selection and Upload-OriginalPath)
+- The error message appears directly underneath the file-upload icon/filename row, in the same red text
+  style used for field errors on the View Details page.
+- The message is whatever the backend returns for the failure (see requirements.md's "Error handling at
+  file upload" - corrupted/unreadable file, no data rows, or wrong column headers each have their own exact
+  wording).
+- Picking a different file, or changing the programme/institute selection above it, clears the message so a
+  stale error doesn't linger once the user has changed what they're about to upload.
+- A successful upload navigates to Upload Result as normal; no error message is shown in that case.
 
 ## UploadResult.png
 - Once the records in the file are processed in either original path or alternate path, the user is navigated to this Upload Result page automatically. (i.e. from either Upload Programme Selection page or )
@@ -113,6 +138,11 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 - each tab should be in the same length, up to the tab with most fields.
 - underneath the tabs there's a button to go back to previous Page, or to Resubmit
 - All fields are editable.
+- Resubmit takes the user to Upload Summary for the record's institute - resolved fresh from
+  the backend's response to the resubmit, not from what the page loaded with. This matters
+  specifically when the correction was to the Institute Code field itself (tab 3): the
+  institute name shown when the page first loaded reflects the *original, wrong* code, so
+  Upload Summary must use the corrected institute, not the stale one.
 
 #### tab 1: 1. Student Details
 - NMC PIN - nmc_nmcpin
@@ -124,6 +154,7 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 - Date of Birth - transform nmc_dateofbirth to YYYY-MM-DD format
 - Gender - nmc_gender
 - Natoinality - nmc_country
+- Country of Birth - nmc_countryofbirthname (directly underneath Nationality)
 
 #### tab 2: 2. Student Address
 - Address Line 1 - nmc_addressline1

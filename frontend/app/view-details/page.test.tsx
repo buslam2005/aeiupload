@@ -118,6 +118,35 @@ describe("ViewDetailsPage - Student Details tab", () => {
     await user.type(maidenName, "JONES");
     expect(maidenName).toHaveValue("JONES");
   });
+
+  it("shows Country of Birth underneath Nationality, bound to nmc_countryofbirthname and editable", async () => {
+    getUploadStudent.mockResolvedValue(makeStudent({ nmc_countryofbirthname: "Nigeria" }));
+    const user = userEvent.setup();
+    render(<ViewDetailsPage />);
+
+    const countryOfBirth = await screen.findByLabelText("Country of Birth");
+    expect(countryOfBirth).toHaveValue("Nigeria");
+
+    const labels = screen.getAllByText(/^(Nationality|Country of Birth)/, { selector: "label" });
+    expect(labels.map((l) => l.textContent)).toEqual(["Nationality *", "Country of Birth"]);
+
+    await user.clear(countryOfBirth);
+    await user.type(countryOfBirth, "Ghana");
+    expect(countryOfBirth).toHaveValue("Ghana");
+  });
+
+  it("shows a Country of Birth mismatch error under the field, same as other fields", async () => {
+    getUploadStudent.mockResolvedValue(
+      makeStudent({
+        nmc_error1description: "Country of birth does not match with organization's record.",
+      })
+    );
+    render(<ViewDetailsPage />);
+
+    expect(
+      await screen.findByText("Country of birth does not match with organization's record.")
+    ).toBeInTheDocument();
+  });
 });
 
 describe("ViewDetailsPage - Programme Information tab", () => {
@@ -149,5 +178,33 @@ describe("ViewDetailsPage - Programme Information tab", () => {
     expect(
       screen.getByText("NMC programme does not match with organization's record.")
     ).toBeInTheDocument();
+  });
+});
+
+describe("ViewDetailsPage - resubmit redirect uses the server's fresh institute context", () => {
+  it("redirects using the resubmit response's institute_name, not the stale one the page loaded with", async () => {
+    // The row loaded with a wrong Institute Code (9999), which the backend
+    // couldn't resolve to a real institute - institute_name is null. The
+    // user corrects it to a real one and resubmits.
+    getUploadStudent.mockResolvedValue(
+      makeStudent({ nmc_traininginstitutecode: "9999", institute_name: null })
+    );
+    resubmitFull.mockResolvedValue(
+      makeStudent({ nmc_traininginstitutecode: "1315", institute_name: "University of Chester" })
+    );
+    const user = userEvent.setup();
+    render(<ViewDetailsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "3. Programme Information" }));
+    const instituteCode = screen.getByLabelText("Institute Code");
+    await user.clear(instituteCode);
+    await user.type(instituteCode, "1315");
+    await user.click(screen.getByRole("button", { name: "Resubmit" }));
+
+    // If this used the stale, pre-edit institute_name (null), it would send
+    // the user to a bare "/upload-summary" with no institute context at all.
+    expect(push).toHaveBeenCalledWith(
+      "/upload-summary?institute_code=1315&institute_name=University+of+Chester"
+    );
   });
 });

@@ -125,6 +125,13 @@ def test_gender_mismatch_alone_is_the_only_error():
     assert errors == ["Gender does not match with organization's record."]
 
 
+def test_country_of_birth_mismatch_alone_is_the_only_error():
+    row = make_row(nmc_countryofbirthname="Ghana")
+    status, errors = match_student(row, make_master())
+    assert status == "Failed"
+    assert errors == ["Country of birth does not match with organization's record."]
+
+
 def test_none_and_empty_string_are_treated_as_equal_blank():
     # master has nmc_maidenname=None; an upload row with "" should not be a
     # false-positive mismatch just because of None-vs-empty-string representation.
