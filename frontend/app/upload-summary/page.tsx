@@ -19,7 +19,7 @@ function UploadSummaryContent() {
 
   useEffect(() => {
     function load() {
-      getBatches().then(setBatches);
+      getBatches(instituteCode).then(setBatches);
     }
 
     load();
@@ -31,7 +31,7 @@ function UploadSummaryContent() {
     }
     window.addEventListener("pageshow", onPageShow);
     return () => window.removeEventListener("pageshow", onPageShow);
-  }, []);
+  }, [instituteCode]);
 
   const mostRecent = batches[0];
 

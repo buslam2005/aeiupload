@@ -93,6 +93,12 @@ refer to @UI_requirements.md in /requirement_doc
 - Start Date->nmc_trainingstartdate
 - End Date->nmc_trainingcompletiondate
 
+## Error handling at file upload
+- a. if the file contains no header, no row or the file is corrupted, show the error message underneath the icon - 'Portal fails to recognize the file. Please check the file before upload it again.'. Do not process the file after showing the error message.
+- b. if the file contains column headers, but there's no data row, display the error message underneath the icon - 'There is no student record in the file. Please check the file before upload it again.'. Do not process the file after showing the error message.
+- c. if the file contains column headers and data, but one or more column headers do not match with the logic of the portal, display the error message underneath the icon - 'Column header(s) are wrong. Please check the file before upload it again.'.  Do not process the file after showing the error message.
+
+
 ## General Notes
 - No user authentication and identification access management for this webapp
 - This web app is not responsive

@@ -21,6 +21,7 @@ function UploadOriginalPathContent() {
   const [academicRoute, setAcademicRoute] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     getInstitutes().then(setInstitutes);
@@ -39,6 +40,7 @@ function UploadOriginalPathContent() {
   async function handleUpload() {
     if (!instituteCode || !file) return;
     setUploading(true);
+    setUploadError(null);
     try {
       const batch = await uploadOriginalPath({
         instituteCode,
@@ -47,6 +49,8 @@ function UploadOriginalPathContent() {
         file,
       });
       router.push(`/upload-result?batchId=${batch.nmc_uploadbatchid}`);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
     }
@@ -77,6 +81,7 @@ function UploadOriginalPathContent() {
               setProgramme("");
               setAcademicRoute("");
               setFile(null);
+              setUploadError(null);
             }}
           >
             <option value="" disabled>
@@ -102,6 +107,7 @@ function UploadOriginalPathContent() {
             onChange={(e) => {
               setProgramme(e.target.value);
               setFile(null);
+              setUploadError(null);
             }}
           >
             <option value="">Select a programme</option>
@@ -136,7 +142,16 @@ function UploadOriginalPathContent() {
 
       <div className="mb-6">
         <span className="mb-2 block font-medium">Select a student qualifications file to upload</span>
-        <FilePickerIcon id="file" disabled={!instituteCode} file={file} onChange={setFile} />
+        <FilePickerIcon
+          id="file"
+          disabled={!instituteCode}
+          file={file}
+          onChange={(f) => {
+            setFile(f);
+            setUploadError(null);
+          }}
+          error={uploadError}
+        />
       </div>
 
       <div className="flex gap-3">

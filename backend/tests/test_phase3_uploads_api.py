@@ -131,13 +131,31 @@ def test_alternate_path_unsupported_file_type_returns_400(client):
     assert resp.status_code == 400
 
 
-def test_alternate_path_empty_file_creates_zero_record_batch(client):
+# --- File-upload error handling (requirements.md "Error handling at file upload") -
+
+
+def test_alternate_path_corrupted_file_returns_400(client):
+    resp = upload_alternate(client, b"", filename="students.csv")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == (
+        "Portal fails to recognize the file. Please check the file before upload it again."
+    )
+
+
+def test_alternate_path_wrong_column_headers_returns_400(client):
+    resp = upload_alternate(client, b"Employee ID,First,Last\n123,Rose,Lee\n")
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == (
+        "Column header(s) are wrong. Please check the file before upload it again."
+    )
+
+
+def test_alternate_path_header_only_file_returns_400(client):
     resp = upload_alternate(client, (CSV_HEADER + "\n").encode())
-    assert resp.status_code == 200
-    batch = resp.json()
-    assert batch["nmc_totalrecords"] == 0
-    assert batch["uploaded_records"] == []
-    assert batch["error_records"] == []
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == (
+        "There is no student record in the file. Please check the file before upload it again."
+    )
 
 
 # --- Original path upload -------------------------------------------------------
@@ -178,6 +196,26 @@ def test_batches_listed_newest_first(client):
     ids = [b["nmc_uploadbatchid"] for b in resp.json()]
     assert ids == sorted(ids, reverse=True)
     assert len(ids) == 2
+
+
+def test_batches_filtered_by_institute_code(client):
+    # Upload Summary is scoped to the currently-selected institute - a batch
+    # uploaded under a different institute must not show up.
+    upload_alternate(client, csv_bytes(ROSE1_ROW))  # institute_code=1315 (helper default)
+    upload_alternate(client, csv_bytes(ROSE2_ROW), institute_code="8020")
+
+    resp = client.get("/api/batches", params={"institute_code": "1315"})
+    codes = {b["nmc_institutecode"] for b in resp.json()}
+    assert codes == {"1315"}
+
+
+def test_batches_without_institute_code_returns_every_institute(client):
+    upload_alternate(client, csv_bytes(ROSE1_ROW))
+    upload_alternate(client, csv_bytes(ROSE2_ROW), institute_code="8020")
+
+    resp = client.get("/api/batches")
+    codes = {b["nmc_institutecode"] for b in resp.json()}
+    assert codes == {"1315", "8020"}
 
 
 def test_get_missing_batch_is_404(client):

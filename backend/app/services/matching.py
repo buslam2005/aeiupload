@@ -4,8 +4,8 @@ MAX_ERRORS = 5
 
 # Checked in this order. Only the fields shown on the View Details page
 # (UI_requirements.md) are compared - fields not visible/editable there (e.g.
-# email, country of birth) can't be corrected by the user, so flagging them
-# would be a dead end. Capped at MAX_ERRORS total messages (the schema only
+# email) can't be corrected by the user, so flagging them would be a dead
+# end. Capped at MAX_ERRORS total messages (the schema only
 # has 5 error-description slots), so any mismatches beyond the first 5 (in
 # this order) are not reported individually - the row is still Failed either
 # way. Programme fields are checked individually (rather than as one combined
@@ -23,6 +23,7 @@ FIELD_CHECKS: list[tuple[str, str]] = [
     ("Date of birth", "nmc_dateofbirth"),
     ("Gender", "nmc_gender"),
     ("Nationality", "nmc_nationalityname"),
+    ("Country of birth", "nmc_countryofbirthname"),
     ("Address line 1", "nmc_addressline1"),
     ("Address line 2", "nmc_addressline2"),
     ("Address line 3", "nmc_addressline3"),

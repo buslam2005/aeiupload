@@ -16,7 +16,18 @@ import type {
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, init);
   if (!response.ok) {
-    throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status}`);
+    // FastAPI's HTTPException responses are {"detail": "<user-facing message>"} -
+    // surface that verbatim (e.g. the file-upload error messages from
+    // requirements.md's "Error handling at file upload") rather than a generic
+    // "failed: <status>", which callers can't show to the user as-is.
+    let detail: string | undefined;
+    try {
+      const body = await response.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // no JSON body (or none matching this shape) - fall through below
+    }
+    throw new Error(detail ?? `${init?.method ?? "GET"} ${path} failed: ${response.status}`);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
@@ -38,8 +49,8 @@ export function getProgrammeTitles(instituteCode: string): Promise<ProgrammeTitl
   return apiFetch(`/programme-titles?institute_code=${encodeURIComponent(instituteCode)}`);
 }
 
-export function getBatches(): Promise<BatchSummary[]> {
-  return apiFetch("/batches");
+export function getBatches(instituteCode?: string): Promise<BatchSummary[]> {
+  return apiFetch(instituteCode ? `/batches?institute_code=${encodeURIComponent(instituteCode)}` : "/batches");
 }
 
 export function getBatch(batchId: number): Promise<BatchDetail> {

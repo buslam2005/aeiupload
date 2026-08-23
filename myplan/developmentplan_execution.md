@@ -1395,6 +1395,170 @@ exact reported cache repro (delete row 2 -> View Details on row 1 ->
 browser Back) and confirmed row 2 no longer reappears and "Errors" reads 1,
 not 2.
 
+**File-upload error handling (2026-08-23)** - added per requirements.md's new
+"Error handling at file upload" section, in two rounds.
+
+*Round 1 (backend only)*: `app/services/parsing.py` gained 3 new exception
+types (`CorruptedFileError`, `NoDataRowsError`, `WrongColumnHeadersError`,
+all subclassing a new `UploadFileError` alongside the existing
+`UnsupportedFileTypeError`), each carrying the exact message text from
+requirements.md. `_parse_csv`/`_parse_xlsx` now check, in order: (1) can the
+file even be read as a spreadsheet (decode/zip/empty-sheet failures -
+previously an unhandled 500, e.g. `zipfile.BadZipFile` for a corrupt
+`.xlsx`, or `RuntimeError: coroutine raised StopIteration` for a
+structurally-valid-but-totally-empty sheet); (2) do the header names cover
+every column `FILE_COLUMN_TO_FIELD` needs (checked before row count -
+checking row count first would misreport a file with genuinely wrong
+headers as "no student record", since none of its rows would map to a
+recognized column and would look blank); (3) is there at least one
+non-blank data row. `uploads.py`'s `_read_upload` catches the shared
+`UploadFileError` base and returns a clean `400` with the message as
+`detail` - this all happens before any `UploadBatch`/`UploadStudent` row is
+created, satisfying "do not process the file" without extra code. A
+header-only file, previously accepted as a valid 0-record batch, is now a
+400 - an intentional behavior change per the new spec, so the one existing
+test asserting the old behavior was replaced. 61/61 backend tests passed at
+this point (3 new in `test_phase3_matching.py`... - see the paragraph
+above; this round added 8 in `test_phase3_parsing.py` covering all 3 error
+cases for both csv and xlsx, plus 3 API-level tests in
+`test_phase3_uploads_api.py`).
+
+*Round 2 (frontend - the actual gap)*: the user tested round 1 against the
+real UI and every scenario "failed". Root cause: neither
+`upload-original-path/page.tsx` nor `upload-programme-selection/page.tsx`'s
+`handleUpload()` had a `catch` block, so a failed `uploadOriginalPath`/
+`uploadAlternatePath` call became an unhandled promise rejection - the
+button silently reverted to "Upload" with zero visible feedback, backend
+fix or not. Confirmed live before changing anything (Playwright): uploading
+a bad file produced a console error
+(`Error: POST /uploads/original-path failed: 400`) and nothing else
+happened on screen. Also, `apiFetch` (`lib/api.ts`) discarded the response
+body entirely on a non-ok response, so even a `catch` block would only have
+had a generic `"... failed: 400"` string to show, not the backend's actual
+message.
+
+**Fix**: `apiFetch` now reads the JSON body of a non-ok response and, if it
+has a `detail` string (which every `HTTPException(status_code=..., detail=
+...)` response does), throws an `Error` with that text verbatim instead of
+the generic fallback. `FilePickerIcon.tsx` gained an optional `error` prop,
+rendered as a red `<p>` directly underneath the icon/filename row (same
+style `ViewDetailsField` uses) - "underneath the icon" is now literal, not
+just "somewhere on the page". Both upload pages: added an `uploadError`
+state, set from the `catch` block added to `handleUpload`, cleared whenever
+the user picks a new file or changes an upstream selection (institute code,
+programme) that would invalidate a stale error, and never touched on
+success (the page navigates away instead).
+
+Live-verified (Playwright, rebuilt `frontend/out`) all 3 error messages on
+both upload pages, that the message clears on picking a new file, and that
+a normal valid upload is unaffected (still navigates to Upload Result).
+5 new frontend tests (`api.test.ts` - detail-extraction; `FilePickerIcon.
+test.tsx` - error rendering) + 6 new page-level tests (3 each in new
+`upload-original-path/page.test.tsx` and `upload-programme-selection/
+page.test.tsx` - error shown on failure, error cleared on re-pick, success
+still navigates and shows no error). **70/70** backend, **54/54** frontend
+tests pass. `tsc --noEmit`, `next lint`, and `next build` all clean.
+
+**Institute-context and cross-institute-history defects (2026-08-23)** - 3
+more manual-test defects, 2 of them the same root cause.
+
+**Defects (a)/(b) - resubmitting from View Details after fixing a wrong
+Institute Code loses institute context.** Reproduced deliberately before
+touching code (Playwright): uploaded a row with an institute code that
+doesn't resolve to a real institute (`"Institute code does not match..."`),
+opened View Details, corrected the Institute Code field to a real one, and
+clicked Resubmit - landed on a bare `/upload-summary` (no query params at
+all), confirmed by the "no institute selected" state and, one step further,
+by `/upload-programme-selection/?institute_code=&institute_name=` (`qs`
+just echoes forward whatever it received at every hop from Upload Summary
+through Upload Path Selection to Upload Programme Selection) - explaining
+both the empty institute display and the HEI Programme drop-down having no
+options (`useEffect(() => { if (!instituteCode) return; ... })` in
+`upload-programme-selection/page.tsx` never fires `getProgrammeTitles`
+against an empty code).
+
+Root cause: `view-details/page.tsx`'s `handleResubmit` built the redirect
+from `form.institute_name` - the value the page loaded with, resolved from
+the row's *original* (wrong) institute code. Editing the Institute Code
+field only updates `form.nmc_traininginstitutecode` client-side; nothing
+re-resolves `form.institute_name` to match, so it stays whatever (often
+`null`) the wrong original code resolved to. `uploadSummaryPath()` treats a
+`null` institute_name as "no context" and returns a bare `/upload-summary`,
+which every downstream `qs`-forwarding page then echoes as empty-but-present
+params. Fix: `handleResubmit` now captures `resubmitFull`'s return value
+(the server's freshly re-resolved `UploadStudentOut`, which reflects the
+*corrected* code) and builds the redirect from that instead of the stale
+`form`. Live-reproduced the exact fix end-to-end: same repro steps, redirect
+now correctly lands on `/upload-summary?institute_code=1315&institute_name=
+University+of+Chester`, and the HEI Programme drop-down on Upload Programme
+Selection has all 8 real options again. 1 new frontend test
+(`view-details/page.test.tsx`) asserts the redirect uses the resubmit
+response's institute fields, not the pre-edit ones.
+
+The other two resubmit paths (bulk/single-row in `ErrorRecordsSubgrid.tsx`)
+were not affected - they redirect using the *batch's* own institute (always
+a real, form-selected value, never taken from unstructured file data) via
+props sourced fresh from `getBatch()`, not a per-row value that can go
+stale mid-edit.
+
+**Defect (c) - Upload Summary shows every institute's upload history, not
+just the selected one.** `GET /api/batches` never took an institute filter -
+`list_batches` selected every `UploadBatch` row unconditionally, and
+`upload-summary/page.tsx` called `getBatches()` with no argument. Confirmed
+live: switching to Canterbury Christ Church University still listed
+University of Chester's batches in the subgrid. Fix: `list_batches` gained
+an optional `institute_code` query param, filtering with `.where(...)` only
+when provided (omitting it still returns everything, preserving the
+existing no-filter behavior for any other caller); `getBatches(instituteCode?)`
+in `lib/api.ts` passes it through when given; `upload-summary/page.tsx`
+now calls `getBatches(instituteCode)` and re-fetches (effect dependency)
+whenever the institute in the URL changes. Live-verified: uploaded a batch
+under Canterbury Christ Church University, navigated to its Upload Summary,
+and confirmed only that one batch shows - none of the 17 existing
+University of Chester batches leak through.
+
+**Tests**: 2 new backend tests (`test_batches_filtered_by_institute_code`,
+`test_batches_without_institute_code_returns_every_institute`); 5 new
+frontend tests (2 `getBatches` cases in `api.test.ts`, 2 in new
+`upload-summary/page.test.tsx`, 1 in `view-details/page.test.tsx` per
+above). **72/72** backend, **59/59** frontend tests pass. `tsc --noEmit`
+and `next lint` both clean.
+
+**Country of Birth field added to View Details tab 1 (2026-08-23)** -
+requested addition, not a defect: `ViewDetails.png`'s diagram showed a
+"Country of Birth" field (flagged as a gap in the earlier Phase 6 review)
+that was never implemented; the field itself (`nmc_countryofbirthname`)
+already existed on `UploadStudent`/`MasterStudent` and in
+`ResubmitFullPayload` - it just wasn't shown anywhere.
+`view-details/page.tsx` tab 1 now has a **Country of Birth** field directly
+underneath Nationality, bound to `nmc_countryofbirthname`, editable, with
+its own mismatch error via `getFieldError(form, "Country of birth")` - same
+pattern as every other field.
+
+Since the field is now visible/editable, `app/services/matching.py` gained
+a matching check for it (`("Country of birth", "nmc_countryofbirthname")`,
+positioned right after Nationality in `FIELD_CHECKS`) - the module's own
+long-standing comment says fields not shown on View Details aren't checked
+"since flagging them would be a dead end"; now that this one is shown, the
+same logic that applied to Institute Code earlier applies here. This is a
+real (if narrow) behavior change: a row whose Place of Birth doesn't match
+the master record, but every other *previously-checked* field does, now
+correctly fails instead of silently succeeding. No existing test fixture
+had a deliberate Place of Birth mismatch expecting Success, so nothing
+broke.
+
+Title stays a free-text field, per explicit instruction - no change made.
+
+**Tests**: 1 new backend test (`test_country_of_birth_mismatch_alone_is_the_only_error`);
+3 new frontend tests in `view-details/page.test.tsx` (field present under
+Nationality with the right value and editable, field order, mismatch error
+displayed). **73/73** backend, **61/61** frontend tests pass. Live-verified
+(Playwright, rebuilt `frontend/out`): uploaded a row with a Place of Birth
+that doesn't match the master record, confirmed the backend reports
+`"Country of birth does not match with organization's record."`, and
+confirmed the field renders in the right position with the right value and
+that error message underneath it.
+
 ### Phase 6 - Testing & Validation
 - Manual end-to-end run of both upload paths using `master_students.csv`-derived
   sample files: one file that matches master data (all Success), one with deliberate
@@ -1403,6 +1567,43 @@ not 2.
   reflect on Upload Summary.
 - Verify View Details field mappings/transforms and inline error display.
 - Cross-check UI against each diagram for layout/field parity.
+
+**Status: Complete (2026-08-23)**
+
+Not a single formal pass but the cumulative result of every defect-fix round
+logged under Phase 5 above (2026-08-22 through 2026-08-23), each of which
+re-ran the relevant slice of this checklist live before and after its fix,
+plus the requester's own independent end-to-end testing across multiple
+rounds, which found no further issues.
+
+- **Both upload paths, deliberate mismatches, all 5 error slots**: covered
+  by the many original-path and alternate-path uploads exercised live across
+  every defect-fix round (wrong programme, wrong institute code, wrong
+  header, empty/corrupted file, etc.), and by
+  `test_multiple_mismatches_are_capped_at_five_in_check_order`
+  (`test_phase3_matching.py`) at the unit level, which exercises all 5 error
+  slots being populated in check order and capped correctly.
+- **Resubmission flows**: all 3 (bulk, single-row, View Details) exercised
+  live repeatedly, including the institute-context defects found and fixed
+  in this phase (stale institute_name on a corrected Institute Code; batches
+  leaking across institutes on Upload Summary).
+- **View Details field mappings/transforms and inline error display**:
+  verified for all 4 tabs, including the Institute Code and Country of
+  Birth fields added during this phase and their own per-field error
+  messages - each following the same `getFieldError`/red-text pattern as
+  every other field.
+- **Diagram cross-check**: performed against every diagram in
+  `requirement_doc/diagrams/`. Findings: (1) the reference diagrams are
+  screenshots of the real, branded NMC system - `UI_requirements.md`'s
+  General Notes already document the deliberate departures (no NMC
+  branding, no header/footer links, disabled Search), confirmed by the
+  requester as intentional, no action needed; (2) `ViewDetails.png` showed
+  a separate "Previous Last Name" field alongside "Last Name" - the
+  requester confirmed the current single merged field is intentional,
+  leave as-is; (3) `ViewDetails.png`'s "Country of Birth" field was missing
+  entirely - added (see the dedicated addendum above); (4) Title remains a
+  free-text field (diagram shows a dropdown) - requester confirmed this
+  should stay free-text.
 
 ### Phase 7 - Cloud Deployment Readiness
 - Confirm every environment-specific value (DB file path, host, port, base URL) comes
@@ -1420,6 +1621,33 @@ not 2.
   an infrastructure-level control in front of the single port - e.g. a reverse-proxy
   allowlist or basic auth - decided when a hosting target is chosen, and kept
   separate from the app's own no-authentication requirement.
+
+**Status: Complete (2026-08-23)**
+
+- **Environment-driven config, no hardcoded `localhost`**: `backend/app/db.py`
+  reads `DATABASE_URL` from the environment (`os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")`),
+  falling back to a local file only when unset; `frontend/app/lib/api.ts`
+  calls relative `/api/...` paths with no base URL, so the same static
+  export works unchanged behind any host. Repo-wide grep for `localhost`
+  outside test files and this plan/testing-guide's own doc examples
+  returned nothing.
+- **Production build path**: `next build` -> `frontend/out` + `uv run
+  uvicorn app.main:app --port <N>` was the actual mechanism used to
+  live-verify every fix in this phase and Phase 5 - run successfully well
+  over a dozen times across defect-fix rounds this session, each time
+  serving the full app (API + static frontend) through the one port with no
+  separate dev server. `--host 0.0.0.0` specifically (vs. the default
+  localhost-only bind used for local verification) was not re-tested this
+  session, but is an unchanged, already-parameterized flag on the same
+  command - not new surface area.
+- **SQLite persistence caveat**: already documented above, and consistent
+  with observed behavior - `create_db_and_tables()` (`app/db.py`) only seeds
+  `programmes`/`master_students` when those tables are empty, so deleting
+  the DB file and restarting reproduces a fresh-deploy-on-ephemeral-storage
+  scenario correctly by design (relied on implicitly every time a throwaway
+  verification server was started this session).
+- **"Limited users" access**: correctly left as an infrastructure-level
+  decision per the plan, not built - no change.
 
 ### Phase 8 - Prototype Polish
 - Final pass on spacing/layout consistency across all pages.
