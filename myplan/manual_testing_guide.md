@@ -346,8 +346,8 @@ if you'd rather they read differently.
 
 All 7 pages now call the real backend via `frontend/app/lib/api.ts` (no more
 `mockData.ts` - deleted in this phase, nothing referenced it once wiring was
-complete). Backend: **58/58** pytest tests pass (`cd backend && uv run pytest
--v`); frontend: **33/33** vitest tests pass (`cd frontend && npm test`, `npm
+complete). Backend: **61/61** pytest tests pass (`cd backend && uv run pytest
+-v`); frontend: **45/45** vitest tests pass (`cd frontend && npm test`, `npm
 run lint`, `npm run build` all clean).
 
 Run the single-port app (`cd frontend && npm run build`, then `cd ../backend
@@ -436,6 +436,36 @@ DB) and manually walk the whole journey in the browser, for **both** paths:
     fix hadn't reached, which silently starved the next page's programme
     lookup of an institute code (see Phase 5 addendum 2 in
     `developmentplan_execution.md`).
+11. **Defect-fix round (2026-08-23)** - see the matching addendum in
+    `developmentplan_execution.md` for root causes. Rebuild first
+    (`cd frontend && npm run build`) so `frontend/out` is current:
+    - **View Details tab 1**: open any error record's View Details. Order
+      is NMC PIN, Title, First Name, **Last Name**, **Middle Name**,
+      Maiden Name, Date of Birth, Gender, Nationality. Last Name shows the
+      row's real last name (not blank) and is editable, same as Middle
+      Name and Maiden Name - type into all three and confirm the typed
+      text stays.
+    - **View Details tab 3**: upload a file with a deliberately wrong
+      Course Code (original path) for an otherwise-matching row - confirm
+      the error shows as `"NMC programme does not match with
+      organization's record."` **underneath the NMC Programme field**
+      specifically (not a generic "Programme" message with no field
+      association). Confirm an **Institute Code** field is present above
+      Training type, pre-filled with the uploaded value, and editable.
+    - **Cache issue**: on Upload Result, delete one Error Records row,
+      then click "View Details" on a *different* row, then use the
+      browser's own Back button (not the in-app Back link only - the
+      browser control) to return to Upload Result. Confirm the deleted
+      row does **not** reappear and "Errors" shows the correct reduced
+      count - reproduce this without first doing a manual page refresh,
+      since the bug only showed up on back-navigation.
+    - **Revised Programme column**: on Upload Result, confirm the
+      per-row "Revised Programme" drop-down in the Error Records subgrid
+      lists programme titles (e.g. "BN (Hons) Adult Nursing") rather than
+      the `R-AN1-B Nurs (Hons)-Pre-registration nursing - Adult` style
+      concatenation. The bulk "Revised Programme" drop-down above the
+      grid is unchanged (still shows the concatenated form) - this was an
+      intentional, narrower change to just the per-row column.
 
 ## Phase 6 - Testing & Validation
 

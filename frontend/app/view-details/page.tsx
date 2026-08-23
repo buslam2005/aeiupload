@@ -22,6 +22,9 @@ function ViewDetailsContent() {
   const [tab, setTab] = useState<(typeof TABS)[number]>(TABS[0]);
   const [form, setForm] = useState<UploadStudent | null | undefined>(undefined);
   const [resubmitting, setResubmitting] = useState(false);
+  // Middle Name has no backing field (UI_requirements.md: "Middle Name - blank") -
+  // kept as local-only state so the field is still a genuine editable input.
+  const [middleName, setMiddleName] = useState("");
 
   useEffect(() => {
     getUploadStudent(studentId)
@@ -104,17 +107,25 @@ function ViewDetailsContent() {
               onChange={(v) => set("nmc_firstname", v)}
               error={getFieldError(form, "First name")}
             />
-            <ViewDetailsField label="Middle Name(s)" value="" onChange={() => {}} />
+            <ViewDetailsField
+              label="Last Name"
+              value={form.nmc_lastname ?? ""}
+              onChange={(v) => set("nmc_lastname", v)}
+              error={getFieldError(form, "Last name")}
+            />
+            <ViewDetailsField label="Middle Name" value={middleName} onChange={setMiddleName} />
             <ViewDetailsField
               label="Maiden Name"
               value={form.nmc_maidenname ?? ""}
               onChange={(v) => set("nmc_maidenname", v)}
               error={getFieldError(form, "Maiden name")}
             />
-            <ViewDetailsField label="Previous Last Name" value="" onChange={() => {}} />
             <div className="mb-5">
-              <label className="mb-1 block font-medium">Date of Birth *</label>
+              <label htmlFor="field-date-of-birth" className="mb-1 block font-medium">
+                Date of Birth *
+              </label>
               <input
+                id="field-date-of-birth"
                 type="date"
                 className="w-full max-w-md rounded border border-brand-border px-3 py-2"
                 value={toIsoDate(form.nmc_dateofbirth)}
@@ -125,8 +136,11 @@ function ViewDetailsContent() {
               )}
             </div>
             <div className="mb-5">
-              <label className="mb-1 block font-medium">Gender *</label>
+              <label htmlFor="field-gender" className="mb-1 block font-medium">
+                Gender *
+              </label>
               <select
+                id="field-gender"
                 className="w-full max-w-md rounded border border-brand-border px-3 py-2"
                 value={GENDER_LABELS[form.nmc_gender ?? ""] ?? ""}
                 onChange={(e) => set("nmc_gender", GENDER_CODES[e.target.value] ?? e.target.value)}
@@ -197,19 +211,28 @@ function ViewDetailsContent() {
           <div>
             <h2 className="mb-4 text-lg font-bold">Programme Information</h2>
             <ViewDetailsField
+              label="Institute Code"
+              value={form.nmc_traininginstitutecode ?? ""}
+              onChange={(v) => set("nmc_traininginstitutecode", v)}
+              error={getFieldError(form, "Institute code")}
+            />
+            <ViewDetailsField
               label="Training type"
               value={form.nmc_trainingtype ?? ""}
               onChange={(v) => set("nmc_trainingtype", v)}
+              error={getFieldError(form, "Training type")}
             />
             <ViewDetailsField
               label="NMC Programme"
               value={form.nmc_programme ?? ""}
               onChange={(v) => set("nmc_programme", v)}
+              error={getFieldError(form, "NMC programme")}
             />
             <ViewDetailsField
               label="Academic route"
               value={form.nmc_academicroute ?? ""}
               onChange={(v) => set("nmc_academicroute", v)}
+              error={getFieldError(form, "Academic route")}
             />
             <ViewDetailsField
               label="Course Start Date"

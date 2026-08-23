@@ -27,8 +27,8 @@ This web app is only a prototype to illustrate new features listed below.
     - refer to section 'upload file field mapping' for mapping file columns to fields of Upload Students table.
     - if all attributes of 'upload students' table row match with a row in 'master students' table, nmc_rowstatus is updated to 'Success'. 
     - else it's updated to 'Failed', and mark the mistatch in fields nmc_error1description to nmc_error5description, say
-        - programme of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'Programme does not match with organization's record.' into field nmc_error1description.
-        - First name of the upload record does not match with the row in 'Master Students' table, and that's the second error. Then write 'First name does not match with organization's record.' into field nmc_error2escription.
+        - the NMC Programme (course code) of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'NMC programme does not match with organization's record.' into field nmc_error1description. Institute Code, Training Type and Academic Route are checked the same way, each producing its own message under its own field (not one combined "Programme" message), so View Details can show each error under the field it belongs to.
+        - First name of the upload record does not match with the row in 'Master Students' table, and that's the next error. Then write 'First name does not match with organization's record.' into field nmc_error2description.
 6. after all file lines are processed in 4., portal moves to Upload Result page, showing attributes of the upload batch.
     - successful rows are listed in 'Uploaded Records' subgrid.
     - failed rows are listed in 'Error Records' subgrid.
@@ -45,8 +45,8 @@ This web app is only a prototype to illustrate new features listed below.
     - stores each row of the file into  'upload students' table
     - if all attributes of 'upload students' table row match with a row in 'master students' table, nmc_rowstatus is updated to 'Success'. 
     - else it's updated to 'Failed', and mark the mistatch in fields nmc_error1description to nmc_error5description, for example:
-        - programme of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'Programme does not match with organization's record.' into field nmc_error1description.
-        - First name of the upload record does not match with the row in 'Master Students' table, and that's the second error. Then write 'First name does not match with organization's record.' into field nmc_error2escription.
+        - the NMC Programme (course code) of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'NMC programme does not match with organization's record.' into field nmc_error1description. Institute Code, Training Type and Academic Route are checked the same way, each producing its own message under its own field (not one combined "Programme" message), so View Details can show each error under the field it belongs to.
+        - First name of the upload record does not match with the row in 'Master Students' table, and that's the next error. Then write 'First name does not match with organization's record.' into field nmc_error2description.
 10. after all file lines are processed in 4., portal moves to Upload Result page, showing attributes of the upload batch.
     - successful rows are listed in 'Uploaded Records' subgrid.
     - failed rows are listed in 'Error Records' subgrid.

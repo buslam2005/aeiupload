@@ -4,18 +4,27 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { nameLabel, rowProgrammeLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
 import { deleteUploadStudent, resubmitWithProgramme } from "../lib/api";
-import type { ProgrammeChoice, UploadStudent } from "../lib/types";
+import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
 import { primaryButtonClass } from "./buttonStyles";
 
 interface Props {
   initialRows: UploadStudent[];
   programmeChoices: ProgrammeChoice[];
+  programmeTitleChoices: ProgrammeTitleChoice[];
   instituteCode: string;
   instituteName: string | null;
 }
 
 function programmeChoiceKey(choice: ProgrammeChoice): string {
   return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}`;
+}
+
+// Includes the title so two qualification-level variants sharing the same
+// (trainingtype, programme, academicroute) triple still get distinct <option>
+// keys/values - parseProgrammeChoiceKey only reads the first 3 segments, so
+// the trailing title segment is ignored on submission.
+function programmeTitleChoiceKey(choice: ProgrammeTitleChoice): string {
+  return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}|${choice.nmc_aeiprogrammetitle}`;
 }
 
 function parseProgrammeChoiceKey(key: string): {
@@ -30,6 +39,7 @@ function parseProgrammeChoiceKey(key: string): {
 export default function ErrorRecordsSubgrid({
   initialRows,
   programmeChoices,
+  programmeTitleChoices,
   instituteCode,
   instituteName,
 }: Props) {
@@ -182,9 +192,9 @@ export default function ErrorRecordsSubgrid({
                     }
                   >
                     <option value="">Select a programme</option>
-                    {programmeChoices.map((choice) => (
-                      <option key={programmeChoiceKey(choice)} value={programmeChoiceKey(choice)}>
-                        {`${choice.nmc_trainingtype}-${choice.nmc_programme}-${choice.nmc_academicroute}-${choice.nmc_programmename}`}
+                    {programmeTitleChoices.map((choice) => (
+                      <option key={programmeTitleChoiceKey(choice)} value={programmeTitleChoiceKey(choice)}>
+                        {choice.nmc_aeiprogrammetitle}
                       </option>
                     ))}
                   </select>

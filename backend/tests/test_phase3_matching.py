@@ -66,15 +66,38 @@ def test_programme_mismatch_alone_is_the_only_error():
     row = make_row(nmc_programme="ZZ")
     status, errors = match_student(row, make_master())
     assert status == "Failed"
-    assert errors == ["Programme does not match with organization's record."]
+    assert errors == ["NMC programme does not match with organization's record."]
 
 
-def test_institute_only_difference_still_counts_as_programme_mismatch():
-    # The Programme check is a combined check across institute/type/programme/route.
+def test_institute_code_mismatch_alone_is_the_only_error():
     row = make_row(nmc_traininginstitutecode="9999")
     status, errors = match_student(row, make_master())
     assert status == "Failed"
-    assert errors == ["Programme does not match with organization's record."]
+    assert errors == ["Institute code does not match with organization's record."]
+
+
+def test_training_type_mismatch_alone_is_the_only_error():
+    row = make_row(nmc_trainingtype="X")
+    status, errors = match_student(row, make_master())
+    assert status == "Failed"
+    assert errors == ["Training type does not match with organization's record."]
+
+
+def test_academic_route_mismatch_alone_is_the_only_error():
+    row = make_row(nmc_academicroute="Wrong")
+    status, errors = match_student(row, make_master())
+    assert status == "Failed"
+    assert errors == ["Academic route does not match with organization's record."]
+
+
+def test_multiple_programme_subfields_mismatch_report_each_separately():
+    row = make_row(nmc_traininginstitutecode="9999", nmc_trainingtype="X")
+    status, errors = match_student(row, make_master())
+    assert status == "Failed"
+    assert errors == [
+        "Institute code does not match with organization's record.",
+        "Training type does not match with organization's record.",
+    ]
 
 
 def test_first_name_mismatch_alone_is_the_only_error():
@@ -113,7 +136,7 @@ def test_none_and_empty_string_are_treated_as_equal_blank():
 
 def test_multiple_mismatches_are_capped_at_five_in_check_order():
     row = make_row(
-        nmc_programme="ZZ",  # -> Programme (slot 1)
+        nmc_programme="ZZ",  # -> NMC programme (slot 1)
         nmc_nmctitlename="Mr",  # -> Title (slot 2)
         nmc_firstname="X",  # -> First name (slot 3)
         nmc_maidenname="X",  # -> Maiden name (slot 4)
@@ -125,7 +148,7 @@ def test_multiple_mismatches_are_capped_at_five_in_check_order():
     assert status == "Failed"
     assert len(errors) == 5
     assert errors == [
-        "Programme does not match with organization's record.",
+        "NMC programme does not match with organization's record.",
         "Title does not match with organization's record.",
         "First name does not match with organization's record.",
         "Maiden name does not match with organization's record.",

@@ -2,21 +2,20 @@ from app.models import MasterStudent, UploadStudent
 
 MAX_ERRORS = 5
 
-PROGRAMME_FIELDS = (
-    "nmc_traininginstitutecode",
-    "nmc_trainingtype",
-    "nmc_programme",
-    "nmc_academicroute",
-)
-
-# Checked in this order, after the combined Programme check. Only the fields
-# shown on the View Details page (UI_requirements.md) are compared - fields not
-# visible/editable there (e.g. email, country of birth) can't be corrected by the
-# user, so flagging them would be a dead end. Capped at MAX_ERRORS total messages
-# (the schema only has 5 error-description slots), so any mismatches beyond the
-# first 5 (in this order) are not reported individually - the row is still
-# Failed either way.
+# Checked in this order. Only the fields shown on the View Details page
+# (UI_requirements.md) are compared - fields not visible/editable there (e.g.
+# email, country of birth) can't be corrected by the user, so flagging them
+# would be a dead end. Capped at MAX_ERRORS total messages (the schema only
+# has 5 error-description slots), so any mismatches beyond the first 5 (in
+# this order) are not reported individually - the row is still Failed either
+# way. Programme fields are checked individually (rather than as one combined
+# "Programme" message) so each can show its own error under its own field on
+# the View Details page, same as every other field.
 FIELD_CHECKS: list[tuple[str, str]] = [
+    ("Institute code", "nmc_traininginstitutecode"),
+    ("Training type", "nmc_trainingtype"),
+    ("NMC programme", "nmc_programme"),
+    ("Academic route", "nmc_academicroute"),
     ("Title", "nmc_nmctitlename"),
     ("First name", "nmc_firstname"),
     ("Maiden name", "nmc_maidenname"),
@@ -50,9 +49,6 @@ def match_student(upload_row: UploadStudent, master: MasterStudent | None) -> tu
         return "Failed", ["NMC PIN does not match with organization's record."]
 
     errors: list[str] = []
-
-    if any(not _equal(getattr(upload_row, f), getattr(master, f)) for f in PROGRAMME_FIELDS):
-        errors.append("Programme does not match with organization's record.")
 
     for label, field in FIELD_CHECKS:
         if len(errors) >= MAX_ERRORS:

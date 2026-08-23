@@ -95,7 +95,11 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
     - Course Code (nmc_programme)
     - Academic Route (nmc_academicroute)
     - Revised Programme
-        - A drop down box listing all programmes of the institute; single choice selection
+        - A drop down box listing the institute's distinct nmc_aeiprogrammetitle
+          values (same candidate list as Upload Programme Selection's HEI
+          Programme drop-down); single choice selection. Shows programme
+          titles rather than the training type/course code/academic route
+          concatenation, so the user can pick the right HEI programme by name.
     - Resubmit button
         - Once the resubmit button is pressed, it triggers the backend to process the record, and then directs the user to Upload Summary page, and sees a new record for the recent submission.
     - Drop-down button (consists of View Details, Delete)
@@ -114,9 +118,9 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 - NMC PIN - nmc_nmcpin
 - Title - nmc_nmctitlename
 - First Name - nmc_firstname
-- Middle Name - blank
+- Last Name - nmc_lastname (directly underneath First Name)
+- Middle Name - blank (no backing field; editable but not saved)
 - Maiden Name - nmc_maidenname
-- Previou Last Name - blank
 - Date of Birth - transform nmc_dateofbirth to YYYY-MM-DD format
 - Gender - nmc_gender
 - Natoinality - nmc_country
@@ -130,12 +134,19 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 - Country - nmc_countryname
 
 #### tab 3: 3. Programme Information
+- Institute Code - nmc_traininginstitutecode (editable - lets the user correct
+  a mistake made in the uploaded file)
 - Training type - nmc_trainingtype
 - NMC Programme - nmc_programme
 - Academic route - nmc_academicroute
 - Course Start Date - nmc_coursestartdate
 - Course End Date - nmc_courseenddate
 - Training Examination Pass Date - nmc_trainingexampassdate
+
+Each field shows its own mismatch error underneath it, same as every other
+tab (e.g. if the uploaded NMC Programme doesn't match the master record, the
+error appears under the NMC Programme field specifically, not as one combined
+message).
 
 #### tab 4: 4. Previous Institute
 - no field
