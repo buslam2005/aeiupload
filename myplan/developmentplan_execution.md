@@ -1680,3 +1680,28 @@ batch shows no checkboxes in either row; "select all" -> pick a programme
 - Confirm no NMC branding, header/footer links, or working Search remain.
 - Clean up seed/reset scripts so the demo database can be rebuilt easily for repeat
   demonstrations.
+
+**Status: Complete (2026-08-23)**
+
+- **Spacing/layout and NMC branding**: confirmed directly by the requester
+  ("Layout across pages is fine", "absence of NMC branding is confirmed") -
+  no further action.
+- **Seed/reset scripts**: there was no dedicated script before this - the
+  only documented reset was the manual "stop the process, delete the
+  SQLite file, restart" sequence in `manual_testing_guide.md`'s Phase 7
+  section. Added two: `backend/app/scripts/reset_db.py` (full rebuild -
+  delete + recreate schema + reseed `programmes`/`master_students` from
+  `app/seed_data`, same as a fresh deploy) and
+  `backend/app/scripts/purge_uploads.py` (deletes only `upload_students`/
+  `upload_batches`, leaving reference data untouched - for resetting
+  upload history between demo runs without re-seeding). Both run as
+  `uv run python -m app.scripts.<name>` from `backend/` - a `[project.scripts]`
+  entry (`uv run reset-db`) was tried first but doesn't work without a
+  build backend configured in `pyproject.toml`, which wasn't worth adding
+  just for this; the module-invocation form matches how the rest of the
+  project already runs things (`uv run uvicorn ...`, `uv run pytest`), so
+  it's the more consistent choice anyway. Both live-verified: uploaded a
+  batch, ran `purge-uploads`, confirmed the batch was gone and institutes/
+  programmes were untouched, and confirmed the next upload's batch id
+  restarted at 1. Full usage guidance, including which script to reach for
+  when, is in `myplan/demo_data_reset_guide.md`.
