@@ -18,7 +18,19 @@ function UploadSummaryContent() {
   const [batches, setBatches] = useState<BatchSummary[]>([]);
 
   useEffect(() => {
-    getBatches().then(setBatches);
+    function load() {
+      getBatches().then(setBatches);
+    }
+
+    load();
+
+    // See upload-result/page.tsx - browsers can restore this page from the
+    // back/forward cache (bfcache) without re-running the fetch above.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) load();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   const mostRecent = batches[0];

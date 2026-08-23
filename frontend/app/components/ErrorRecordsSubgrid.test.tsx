@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ErrorRecordsSubgrid from "./ErrorRecordsSubgrid";
-import type { ProgrammeChoice, UploadStudent } from "../lib/types";
+import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -16,6 +16,15 @@ afterEach(() => {
 
 const PROGRAMME_CHOICES: ProgrammeChoice[] = [
   { nmc_trainingtype: "R", nmc_programme: "SC1", nmc_academicroute: "B Nurs (Hons)", nmc_programmename: "Pre-registration nursing - Child" },
+];
+
+const PROGRAMME_TITLE_CHOICES: ProgrammeTitleChoice[] = [
+  {
+    nmc_trainingtype: "R",
+    nmc_programme: "SC1",
+    nmc_academicroute: "B Nurs (Hons)",
+    nmc_aeiprogrammetitle: "BN (Hons) Children's Nursing",
+  },
 ];
 
 function makeRow(id: number, overrides: Partial<UploadStudent> = {}): UploadStudent {
@@ -66,6 +75,7 @@ function renderGrid(rows: UploadStudent[]) {
     <ErrorRecordsSubgrid
       initialRows={rows}
       programmeChoices={PROGRAMME_CHOICES}
+      programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
       instituteCode="1315"
       instituteName="University of Chester"
     />
@@ -144,5 +154,65 @@ describe("ErrorRecordsSubgrid", () => {
     expect(push).toHaveBeenCalledWith(
       "/upload-summary?institute_code=1315&institute_name=University+of+Chester"
     );
+  });
+
+  it("per-row Revised Programme column lists distinct programme titles, not the concatenated label", () => {
+    renderGrid([makeRow(1)]);
+    const rowSelect = screen.getAllByRole("combobox")[1];
+    expect(within(rowSelect).getByText("BN (Hons) Children's Nursing")).toBeInTheDocument();
+    expect(
+      within(rowSelect).queryByText("R-SC1-B Nurs (Hons)-Pre-registration nursing - Child")
+    ).not.toBeInTheDocument();
+  });
+
+  it("resubmitting a single row posts the programme triple behind the selected title", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderGrid([makeRow(1)]);
+
+    const rowSelect = screen.getAllByRole("combobox")[1];
+    await user.selectOptions(rowSelect, "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing");
+    await user.click(screen.getByRole("button", { name: "Resubmit" }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toEqual({
+      upload_student_ids: [1],
+      nmc_trainingtype: "R",
+      nmc_programme: "SC1",
+      nmc_academicroute: "B Nurs (Hons)",
+    });
+  });
+
+  it("remounting with a fresh initialRows array (the parent's fix for stale bfcache renders) drops rows no longer present", () => {
+    // upload-result/page.tsx remounts ErrorRecordsSubgrid via a changing `key`
+    // whenever it reloads (on mount and on bfcache restore), rather than
+    // relying on this component to notice initialRows changed - this
+    // reproduces that remount and confirms it picks up the fresh data.
+    const { rerender } = render(
+      <ErrorRecordsSubgrid
+        key="load-1"
+        initialRows={[makeRow(1), makeRow(2)]}
+        programmeChoices={PROGRAMME_CHOICES}
+        programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
+        instituteCode="1315"
+        instituteName="University of Chester"
+      />
+    );
+    expect(screen.getByText("PIN1")).toBeInTheDocument();
+
+    rerender(
+      <ErrorRecordsSubgrid
+        key="load-2"
+        initialRows={[makeRow(2)]}
+        programmeChoices={PROGRAMME_CHOICES}
+        programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
+        instituteCode="1315"
+        instituteName="University of Chester"
+      />
+    );
+
+    expect(screen.queryByText("PIN1")).not.toBeInTheDocument();
+    expect(screen.getByText("PIN2")).toBeInTheDocument();
   });
 });

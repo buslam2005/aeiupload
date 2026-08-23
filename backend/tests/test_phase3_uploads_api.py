@@ -158,7 +158,7 @@ def test_original_path_wrong_file_programme_is_reported(client):
     batch = resp.json()
     assert batch["nmc_totalfailedrecords"] == 1
     assert batch["error_records"][0]["nmc_error1description"] == (
-        "Programme does not match with organization's record."
+        "NMC programme does not match with organization's record."
     )
 
 
