@@ -106,8 +106,12 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 
 #### Enhancement 2 - Error Records subgrid
 - Below it is an expanded subgrid which facilitates user to read more attributes, and to pick another programe for resubmission.
+- Per-row checkboxes were removed after business review (2026-08-23) as redundant with
+  each row's own Revised Programme + Resubmit controls. The "select all" checkbox above
+  the subgrid (Enhancement 1) is the only remaining selection control for the bulk
+  Revised Programme + Submit action - it now toggles the bulk selection between every
+  row in the subgrid and none, rather than checking/unchecking individual rows.
 - The Error Records subgrid consists of the following columns
-    - checkbox in the leftmost of each row
     - Line number (row number in the Excel file; no column header)
     - Name (concatenate nmcpin, hyphen, first name, last name)
     - NMC PIN (nmcpin)

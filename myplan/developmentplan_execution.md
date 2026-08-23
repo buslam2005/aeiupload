@@ -1649,6 +1649,32 @@ rounds, which found no further issues.
 - **"Limited users" access**: correctly left as an infrastructure-level
   decision per the plan, not built - no change.
 
+**Error Records subgrid: removed per-row checkboxes (2026-08-23)** - business
+decision after review: individual row selection was redundant, since every
+row already has its own Revised Programme drop-down + Resubmit button for
+fixing that row on its own. `ErrorRecordsSubgrid.tsx`'s leftmost checkbox
+column (and its table header cell) removed from each row; `toggleOne` (the
+now-unused per-row toggle handler) removed with it. The bulk "select all"
+checkbox, bulk Revised Programme drop-down, and Submit button above the
+subgrid (Enhancement 1 in `UI_requirements.md`) were kept as-is per explicit
+instruction - "select all" is now the *only* selection control left, so it
+behaves as a single on/off toggle for "every row in the subgrid" vs. "none",
+rather than reflecting/driving individual row checkboxes. This is a real,
+narrow behavior change: the bulk action can no longer be applied to an
+arbitrary subset of rows, only to all of them at once - accepted as correct
+per the business decision.
+
+**Tests**: 2 existing tests in `ErrorRecordsSubgrid.test.tsx` that depended
+on a per-row checkbox rewritten - one now asserts there is exactly one
+checkbox in the whole component (select-all) and that it starts unchecked;
+the bulk-resubmit test now selects via "select all" instead of an
+individual row checkbox (necessarily now covering all rows in the grid,
+since there's no other way to select a subset). **62/62** frontend tests
+pass (backend untouched, still 73/73). `tsc --noEmit` and `next lint`
+clean. Live-verified (Playwright, rebuilt `frontend/out`): a 2-row error
+batch shows no checkboxes in either row; "select all" -> pick a programme
+-> Submit fixes both rows via the bulk endpoint exactly as before.
+
 ### Phase 8 - Prototype Polish
 - Final pass on spacing/layout consistency across all pages.
 - Confirm no NMC branding, header/footer links, or working Search remain.

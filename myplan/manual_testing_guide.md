@@ -347,7 +347,7 @@ if you'd rather they read differently.
 All 7 pages now call the real backend via `frontend/app/lib/api.ts` (no more
 `mockData.ts` - deleted in this phase, nothing referenced it once wiring was
 complete). Backend: **73/73** pytest tests pass (`cd backend && uv run pytest
--v`); frontend: **61/61** vitest tests pass (`cd frontend && npm test`, `npm
+-v`); frontend: **62/62** vitest tests pass (`cd frontend && npm test`, `npm
 run lint`, `npm run build` all clean).
 
 Run the single-port app (`cd frontend && npm run build`, then `cd ../backend
@@ -519,6 +519,17 @@ DB) and manually walk the whole journey in the browser, for **both** paths:
     underneath Nationality, pre-filled with the uploaded value, editable,
     and showing that same error message underneath it. Confirm Title is
     still a plain free-text box (unchanged).
+15. **Error Records subgrid: per-row checkboxes removed (2026-08-23)** -
+    business decision, not a defect. On Upload Result, in the Error Records
+    subgrid: confirm there is no checkbox in the leftmost column of any
+    row (each row starts directly with its line number). Confirm the
+    "select all" checkbox above the subgrid is still present, and still
+    works: click it, pick a programme in the bulk Revised Programme
+    drop-down, click Submit - confirm it resubmits **every** row in the
+    subgrid (there's no way to select a subset any more) and navigates to
+    Upload Summary. Confirm each row's own Revised Programme drop-down +
+    Resubmit button (for fixing that row individually) still works
+    unchanged.
 
 ## Phase 6 - Testing & Validation
 

@@ -56,15 +56,6 @@ export default function ErrorRecordsSubgrid({
     setSelectedIds(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
   }
 
-  function toggleOne(id: number) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   async function resubmitBulk() {
     if (selectedIds.size === 0 || !bulkRevisedProgramme) return;
     setSubmitting(true);
@@ -145,8 +136,7 @@ export default function ErrorRecordsSubgrid({
         <table className="w-full min-w-[1400px] border-collapse text-sm">
           <thead className="sticky top-0 bg-white">
             <tr className="border-b border-brand-border text-left">
-              <th className="py-2 pr-2" />
-              <th className="py-2 pr-4" />
+              <th className="w-24 px-2 py-2 text-center" />
               <th className="py-2 pr-4">Name</th>
               <th className="py-2 pr-4">NMC PIN</th>
               <th className="py-2 pr-4">Created On</th>
@@ -165,14 +155,7 @@ export default function ErrorRecordsSubgrid({
           <tbody>
             {rows.map((row, index) => (
               <tr key={row.id} className="border-b border-brand-border">
-                <td className="py-2 pr-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(row.id)}
-                    onChange={() => toggleOne(row.id)}
-                  />
-                </td>
-                <td className="py-2 pr-4">{index + 1}</td>
+                <td className="w-24 px-2 py-2 text-center">{index + 1}</td>
                 <td className="py-2 pr-4">{nameLabel(row)}</td>
                 <td className="py-2 pr-4">{row.nmc_nmcpin}</td>
                 <td className="py-2 pr-4 whitespace-nowrap">{toBritishDateTime(row.nmc_rowuploadtime)}</td>
@@ -225,7 +208,7 @@ export default function ErrorRecordsSubgrid({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={15} className="py-4 text-center text-brand-disabled-text">
+                <td colSpan={14} className="py-4 text-center text-brand-disabled-text">
                   There are no records to display.
                 </td>
               </tr>
