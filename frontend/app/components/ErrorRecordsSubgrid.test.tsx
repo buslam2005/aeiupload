@@ -94,22 +94,30 @@ describe("ErrorRecordsSubgrid", () => {
     expect(screen.getByText("There are no records to display.")).toBeInTheDocument();
   });
 
-  it("select-all checkbox checks and unchecks every row checkbox", async () => {
+  it("select-all is the only selection control - there are no per-row checkboxes", () => {
+    renderGrid([makeRow(1), makeRow(2)]);
+    // Business decision: per-row checkboxes were removed as redundant with
+    // each row's own Revised Programme + Resubmit controls. Select-all is
+    // the only remaining way to populate the bulk Submit selection.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    expect(screen.getByRole("checkbox", { name: "select all" })).not.toBeChecked();
+  });
+
+  it("select-all toggles the bulk selection between every row and none", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     renderGrid([makeRow(1), makeRow(2)]);
 
-    const checkboxes = screen.getAllByRole("checkbox");
-    const [selectAll, row1, row2] = checkboxes;
-    expect(row1).not.toBeChecked();
-    expect(row2).not.toBeChecked();
-
+    const selectAll = screen.getByRole("checkbox", { name: "select all" });
     await user.click(selectAll);
-    expect(row1).toBeChecked();
-    expect(row2).toBeChecked();
+    expect(selectAll).toBeChecked();
 
-    await user.click(selectAll);
-    expect(row1).not.toBeChecked();
-    expect(row2).not.toBeChecked();
+    await user.selectOptions(screen.getByLabelText("Revised Programme"), "R|SC1|B Nurs (Hons)");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.upload_student_ids).toEqual([1, 2]);
   });
 
   it("deleting a row removes it from the grid", async () => {
@@ -134,9 +142,9 @@ describe("ErrorRecordsSubgrid", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
-    renderGrid([makeRow(1), makeRow(2)]);
+    renderGrid([makeRow(1)]);
 
-    await user.click(screen.getAllByRole("checkbox")[1]); // row 1's own checkbox
+    await user.click(screen.getByRole("checkbox", { name: "select all" }));
     await user.selectOptions(screen.getByLabelText("Revised Programme"), "R|SC1|B Nurs (Hons)");
     await user.click(screen.getByRole("button", { name: "Submit" }));
 
