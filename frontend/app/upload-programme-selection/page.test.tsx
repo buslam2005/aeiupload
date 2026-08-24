@@ -26,6 +26,7 @@ const PROGRAMME_TITLE_CHOICES: ProgrammeTitleChoice[] = [
     nmc_trainingtype: "R",
     nmc_programme: "SC1",
     nmc_academicroute: "B Nurs (Hons)",
+    nmc_qualificationlevel: "6",
     nmc_aeiprogrammetitle: "BN (Hons) Children's Nursing",
   },
 ];

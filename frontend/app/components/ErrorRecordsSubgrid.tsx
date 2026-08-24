@@ -2,21 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { nameLabel, rowProgrammeLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
+import { nameLabel, programmeTitleLabel, rowProgrammeLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
 import { deleteUploadStudent, resubmitWithProgramme } from "../lib/api";
-import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
+import type { ProgrammeTitleChoice, UploadStudent } from "../lib/types";
 import { primaryButtonClass } from "./buttonStyles";
 
 interface Props {
   initialRows: UploadStudent[];
-  programmeChoices: ProgrammeChoice[];
   programmeTitleChoices: ProgrammeTitleChoice[];
   instituteCode: string;
   instituteName: string | null;
-}
-
-function programmeChoiceKey(choice: ProgrammeChoice): string {
-  return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}`;
 }
 
 // Includes the title so two qualification-level variants sharing the same
@@ -38,7 +33,6 @@ function parseProgrammeChoiceKey(key: string): {
 
 export default function ErrorRecordsSubgrid({
   initialRows,
-  programmeChoices,
   programmeTitleChoices,
   instituteCode,
   instituteName,
@@ -115,9 +109,9 @@ export default function ErrorRecordsSubgrid({
             onChange={(e) => setBulkRevisedProgramme(e.target.value)}
           >
             <option value="">Select a programme</option>
-            {programmeChoices.map((choice) => (
-              <option key={programmeChoiceKey(choice)} value={programmeChoiceKey(choice)}>
-                {`${choice.nmc_trainingtype}-${choice.nmc_programme}-${choice.nmc_academicroute}-${choice.nmc_programmename}`}
+            {programmeTitleChoices.map((choice) => (
+              <option key={programmeTitleChoiceKey(choice)} value={programmeTitleChoiceKey(choice)}>
+                {programmeTitleLabel(choice)}
               </option>
             ))}
           </select>

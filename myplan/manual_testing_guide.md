@@ -19,10 +19,13 @@ cd frontend && npm run build   # only needed the first time, or after frontend c
 cd ../backend
 uv run uvicorn app.main:app --port 8008
 ```
-Then open `http://localhost:8008` in a browser - this must serve the First Page
-directly, with the API reachable at `http://localhost:8008/api/...`. (Until Phase 4
-builds the real First Page, this serves the Phase 1 placeholder page instead - see
-the Phase 1 section below.)
+Then open `http://localhost:8008` in a browser - this must serve the landing page
+directly (see the Post-Phase 8 section below; before that addendum, `/` served First
+Page directly instead), with the API reachable at `http://localhost:8008/api/...`.
+(Until Phase 4 builds the real First Page, this serves the Phase 1 placeholder page
+instead - see the Phase 1 section below.) First Page itself (institute selection) now
+lives at `/select-institute`, reached via the landing page's "Upload student records"
+tile.
 
 **Frontend-only hot-reload mode (Phase 4 UI work before integration)**
 ```
@@ -257,7 +260,9 @@ for checking the red inline error text).
 4. Run the full app per section 1 (`npm run build` in frontend, then
    `uv run uvicorn app.main:app --port 8008` in backend) and click through the
    whole journey in a browser:
-   - **First Page** (`/`): institute drop-down shows exactly 2 options,
+   - **First Page** (`/` at the time of this phase; moved to `/select-institute`
+     since the Post-Phase 8 landing-page addendum - see that section below):
+     institute drop-down shows exactly 2 options,
      alphabetically sorted (`Canterbury Christ Church University - 8020` then
      `University of Chester - 1315`); Continue is disabled until one is picked.
    - **Upload Summary** (after Continue): right-aligned two-line block -
@@ -576,3 +581,46 @@ This phase is the formal pass over everything above plus edge cases:
   in one command without needing to find the file or restart the server. See
   `myplan/demo_data_reset_guide.md` for this and the upload-history-only
   purge script.
+
+## Post-Phase 8 - Business Amendment Requests (2026-08-24)
+
+Rebuild first (`cd frontend && npm run build`) so `frontend/out` is current, then
+run the full app per section 1.
+
+1. **Landing page** (`/`): loads a page of purple square tiles, each with a white
+   circular right-arrow icon - "Upload student records", "Manage approved
+   signatories", "Request PINs", "Manage OSCE results", "Manage your team", "DGHC
+   Requests". Confirm no 'NMC' text anywhere on this page either (including the
+   "Request PINs" tile - it does not read "Request NMC PINs"). Click "Upload student
+   records" - confirm it navigates to `/select-institute/` (First Page, institute
+   drop-down). Confirm the other 5 tiles are **not** links (no underline/hover
+   pointer, and inspecting the page shows no `<a>`/`href` on them) - clicking them
+   does nothing.
+2. **First Page moved**: confirm `/select-institute` shows the institute drop-down
+   exactly as before (2 options, Continue disabled until one is picked). From Upload
+   Summary, click "Change" - confirm it returns to `/select-institute/`, not `/`.
+3. **Revised Programme (Enhancement 1) concatenation**: create a batch with at least
+   one Error Records row (e.g. upload an original-path file with a deliberately wrong
+   Course Code). On Upload Result, open the bulk "Revised Programme" drop-down above
+   the Error Records subgrid - confirm each option now reads as **5** hyphenated
+   segments (training type - programme - academic route - qualification level - HEI
+   programme title), e.g. `R-AN1-B Nurs (Hons)-F-BN (Hons) Adult Nursing`, not the
+   old 4-segment `R-AN1-B Nurs (Hons)-Pre-registration nursing - Adult` form. Two
+   qualification-level variants of the same programme (e.g. `SC1`'s Apprenticeship
+   vs Full Time) should now appear as two distinct options in this drop-down, since
+   qualification level is no longer collapsed away here. Confirm the per-row Revised
+   Programme column (the one inside each row of the subgrid) is **unchanged** -
+   still shows just the programme title (e.g. "BN (Hons) Adult Nursing"), not the
+   5-field concatenation - that column's own spec wasn't edited. Select-all -> pick
+   a programme from the bulk drop-down -> Submit still resolves the row(s) to
+   `Success` on Upload Summary, exactly as before.
+4. **Alternate Path institute-code override** (assessed as already-working, not a
+   new feature - included here for completeness of this round's sign-off): upload a
+   file via "Same course for all Students" whose row has a real student's PIN but a
+   deliberately wrong Institute Code, Training Type, Course Code, or Academic Route
+   in the file itself - confirm the row still succeeds, since the selected AEI
+   programme (and the institute you're logged in as) override all four columns
+   before the row is matched, regardless of what the file says. This is the existing
+   behaviour from Phase 3 (`test_alternate_path_overrides_file_programme_with_selected_programme`),
+   re-confirmed correct against the business's newly-added requirements.md bullet -
+   no code changed for this item.

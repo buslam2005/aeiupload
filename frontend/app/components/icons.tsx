@@ -22,6 +22,15 @@ export function UploadFileIcon({ className }: { className?: string }) {
   );
 }
 
+export function ArrowRightIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="8" />
+      <path d="M7 10h6M10 7l3 3-3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 const DECORATIVE_GLYPHS = [
   <circle key="1" cx="10" cy="10" r="5" />,
   <rect key="2" x="6" y="6" width="8" height="8" rx="1.5" />,

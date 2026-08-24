@@ -10,6 +10,11 @@ This document depcists UI requirements of each page of the web app (portal), and
 - spacing and layout of elements of each page should be consistent when user navigates across pages.
 - for the colour scheme, follow https://www.nmc.org.uk/education/approved-programmes/
 
+## AEIportallandingpage.png
+- This is the landing page - First Page of localhost:8008
+- Need purple squared tiles and white right arrow in each.
+- When user clicks 'Upload student records' tile, he is directed to FirstPage.png
+- No URL for other purple tiles. 
 
 ## FirstPage.png
 - This is the landing page - First Page
@@ -100,7 +105,7 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 - Underneath the subgrid's title 'Error Records' there are
     - a checkbox to select all individual records in the subgrid
     - Revised Programme drop-down box shows all available programmes of an institute.
-        - concatenate nmc_trainingtype, nmc_programme, nmc_academicroute, nmc_prorammename with hyphen in between - refer to ErrorRecordsSubgridSingleSelection.png
+        - concatenate nmc_trainingtype, nmc_programme, nmc_academicroute, nmc_qualificationlevel, nmc_aeiprorammenametitle with hyphen in between - refer to the layout only in ErrorRecordsSubgridSingleSelection.png
     - Once a programme is selected from the drop-down box and then click 'Submit' button, all individual records are uploaded with the programme.
         - Once done, user is directed to Upload Summary page, and sees a new record for the recent submission.
 

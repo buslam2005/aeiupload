@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import UploadResultPage from "./page";
-import type { BatchDetail, ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
+import type { BatchDetail, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -9,14 +9,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 const getBatch = vi.fn();
-const getProgrammes = vi.fn();
 const getProgrammeTitles = vi.fn();
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
   return {
     ...actual,
     getBatch: (id: number) => getBatch(id),
-    getProgrammes: (code: string) => getProgrammes(code),
     getProgrammeTitles: (code: string) => getProgrammeTitles(code),
   };
 });
@@ -25,7 +23,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const PROGRAMME_CHOICES: ProgrammeChoice[] = [];
 const PROGRAMME_TITLE_CHOICES: ProgrammeTitleChoice[] = [];
 
 function makeErrorRow(id: number, overrides: Partial<UploadStudent> = {}): UploadStudent {
@@ -99,7 +96,6 @@ function firePageShow(persisted: boolean) {
 describe("UploadResultPage - bfcache staleness fix", () => {
   it("re-fetches the batch when the page is restored from the back/forward cache", async () => {
     getBatch.mockResolvedValueOnce(makeBatch([makeErrorRow(1), makeErrorRow(2)]));
-    getProgrammes.mockResolvedValue(PROGRAMME_CHOICES);
     getProgrammeTitles.mockResolvedValue(PROGRAMME_TITLE_CHOICES);
     render(<UploadResultPage />);
 
@@ -126,7 +122,6 @@ describe("UploadResultPage - bfcache staleness fix", () => {
 
   it("does not re-fetch on a pageshow that isn't a bfcache restore", async () => {
     getBatch.mockResolvedValue(makeBatch([makeErrorRow(1)]));
-    getProgrammes.mockResolvedValue(PROGRAMME_CHOICES);
     getProgrammeTitles.mockResolvedValue(PROGRAMME_TITLE_CHOICES);
     render(<UploadResultPage />);
 

@@ -43,7 +43,7 @@ function UploadSummaryContent() {
         </p>
         <div className="flex items-center gap-3">
           <span className="font-semibold">{instituteName || "no institute selected"}</span>
-          <Link href="/" className={primaryButtonClass}>
+          <Link href="/select-institute" className={primaryButtonClass}>
             Change
           </Link>
         </div>

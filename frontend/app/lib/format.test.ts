@@ -6,6 +6,7 @@ import {
   instituteLabel,
   nameLabel,
   programmeLabel,
+  programmeTitleLabel,
   rowProgrammeLabel,
   toBritishDateTime,
   toIsoDate,
@@ -88,6 +89,20 @@ describe("programmeLabel", () => {
         nmc_programmename: "Pre-registration nursing - Child",
       })
     ).toBe("R-SC1-B Nurs (Hons)-Pre-registration nursing - Child");
+  });
+});
+
+describe("programmeTitleLabel", () => {
+  it("hyphen-joins training type, programme, route, qualification level, and HEI programme title", () => {
+    expect(
+      programmeTitleLabel({
+        nmc_trainingtype: "R",
+        nmc_programme: "SC1",
+        nmc_academicroute: "B Nurs (Hons)",
+        nmc_qualificationlevel: "6",
+        nmc_aeiprogrammetitle: "BN (Hons) Children's Nursing",
+      })
+    ).toBe("R-SC1-B Nurs (Hons)-6-BN (Hons) Children's Nursing");
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ProgrammeChoice, UploadStudent } from "./types";
+import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "./types";
 
 export function instituteLabel(institute: { name: string; code: string }): string {
   return `${institute.name} - ${institute.code}`;
@@ -52,6 +52,19 @@ export function rowProgrammeLabel(row: UploadStudent): string | null {
     nmc_academicroute,
     nmc_programmename,
   });
+}
+
+/** Error Records subgrid's bulk "Revised Programme" drop-down label - hyphen-joins
+ * training type, programme, academic route, qualification level, and HEI programme
+ * title, per UI_requirements.md's Enhancement 1. */
+export function programmeTitleLabel(choice: ProgrammeTitleChoice): string {
+  return [
+    choice.nmc_trainingtype,
+    choice.nmc_programme,
+    choice.nmc_academicroute,
+    choice.nmc_qualificationlevel,
+    choice.nmc_aeiprogrammetitle,
+  ].join("-");
 }
 
 /** "Name (concatenate nmcpin, hyphen, first name, last name)" - UI_requirements.md */

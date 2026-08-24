@@ -1705,3 +1705,143 @@ batch shows no checkboxes in either row; "select all" -> pick a programme
   programmes were untouched, and confirmed the next upload's batch id
   restarted at 1. Full usage guidance, including which script to reach for
   when, is in `myplan/demo_data_reset_guide.md`.
+
+### Post-Phase 8 - Business Amendment Requests (2026-08-24)
+
+Three amendment requests from the business after Phase 8 sign-off, against
+the current `phase8-seed-reset-scripts` branch: (a) add a landing page before
+First Page, (b) revise the Enhancement 1 bulk "Revised Programme"
+concatenation formula, (c) assess (not yet fix) whether a newly-added third
+bullet under `requirements.md`'s Alternate Path section 5 is already
+satisfied. Per explicit instruction, no development-documentation edits were
+made until this addendum - (a) and (b) were implemented and verified first,
+(c) was assessed and reported back with no code change, and only once the
+requester confirmed all three were tested did this doc update happen.
+
+**(a) Landing page added before First Page.** The requester inserted
+`AEIportallandingpage.png` into `UI_requirements.md` and updated the
+`FirstPage.png` section to describe it as the page after the new landing
+page, not `/` itself.
+
+- The former First Page (institute selection, previously served at `/`)
+  moved to `frontend/app/select-institute/` (component renamed
+  `SelectInstitutePage`, content/logic unchanged) so `/` is free for the new
+  landing page.
+- `frontend/app/page.tsx` (new): renders `AEIportallandingpage.png`'s 6
+  purple square tiles (`components/icons.tsx`'s new `ArrowRightIcon`, a
+  circle-with-right-arrow, inside each), wrapping flex grid. Only "Upload
+  student records" is a `<Link>` (to `/select-institute`); the other 5
+  ("Manage approved signatories", "Request PINs", "Manage OSCE results",
+  "Manage your team", "DGHC Requests") render as plain non-interactive
+  `<div>`s, per the doc's explicit "No URL for other purple tiles." "Request
+  NMC PINs" was relabelled "Request PINs" for consistency with the existing
+  "Do not show 'NMC'" General Note, applied here to a brand-new placeholder
+  tile rather than left un-scrubbed by omission.
+- `frontend/app/upload-summary/page.tsx`: the "Change" link (`href="/"`,
+  back to institute selection) updated to `href="/select-institute"` - the
+  one other call site that pointed at the old First Page location. Grepped
+  the whole frontend for any other `href="/"` / `router.push("/")` and found
+  none.
+- Tests: `frontend/app/page.test.tsx` rewritten for the landing page (tile
+  link destination, other tiles have no `<a>` ancestor);
+  `frontend/app/select-institute/page.test.tsx` is the moved former
+  `page.test.tsx` (component name only changed to match).
+
+**(b) Enhancement 1 "Revised Programme" concatenation updated.** The
+requester amended `UI_requirements.md`'s Enhancement 1 second bullet: the
+bulk drop-down's label formula changed from `nmc_trainingtype-nmc_programme-
+nmc_academicroute-nmc_programmename` (4 fields, qualification level
+collapsed away) to `nmc_trainingtype-nmc_programme-nmc_academicroute-
+nmc_qualificationlevel-nmc_aeiprogrammetitle` (5 fields, qualification-level
+distinct). ("aeiprorammenametitle" in the requester's edit read as the same
+typo pattern as the doc's own pre-existing `nmc_prorammename` typo elsewhere -
+confirmed to mean the existing `nmc_aeiprogrammetitle` field, not a new one.)
+
+- Backend: `ProgrammeTitleChoiceOut` (`app/schemas.py`) and
+  `GET /api/programme-titles` (`app/routers/lookups.py`) now also return
+  `nmc_qualificationlevel` - already present on `Programme`/the seed CSV,
+  just not previously exposed on this endpoint (`GET /api/programmes`, the
+  endpoint the *old* 4-field formula used, deliberately collapses
+  qualification level away by design - see Phase 3 - so it structurally
+  cannot carry the new field; the fix had to change data source, not just
+  add a column to the existing one).
+- Frontend: new `programmeTitleLabel()` (`lib/format.ts`) builds the 5-field
+  label. `ErrorRecordsSubgrid`'s bulk drop-down switched from
+  `programmeChoices`/`ProgrammeChoice` (the collapsed 4-field shape) to
+  `programmeTitleChoices`/`ProgrammeTitleChoice` - the same
+  qualification-level-distinct source the per-row drop-down and Upload
+  Programme Selection's HEI Programme drop-down already use. The now-fully-
+  unused `programmeChoices` prop/state was removed from `ErrorRecordsSubgrid`
+  and `upload-result/page.tsx` entirely (confirmed nothing else in those
+  files referenced it) rather than left dangling. `ProgrammeChoice`/
+  `getProgrammes`/`GET /api/programmes` are untouched everywhere else -
+  Upload-OriginalPath's own optional Programme/Academic Route drop-downs
+  still use the 4-field collapsed shape, matching that page's own unchanged
+  doc text. The per-row Revised Programme column (Enhancement 2) was left
+  unchanged (still title-only, per its own separate, unedited doc bullet).
+- Tests: backend's existing 73 tests are all unaffected (additive field);
+  2 new `programmeTitleLabel` cases in `format.test.ts`;
+  `ErrorRecordsSubgrid.test.tsx` fixtures/assertions updated for the added
+  field, the new 4-segment option-value key
+  (`trainingtype|programme|route|title`, matching the already-existing
+  per-row pattern), and a new assertion that the bulk drop-down renders the
+  5-field label; `upload-result/page.test.tsx`'s now-removed
+  `getProgrammes`/`ProgrammeChoice` mocking deleted; `upload-programme-
+  selection/page.test.tsx`'s unrelated `ProgrammeTitleChoice` fixture
+  updated for the new required field. **73/73 backend, 66/66 frontend**
+  tests pass; `tsc --noEmit` and `next lint` both clean.
+- Live-verified (Playwright, rebuilt `frontend/out`, backend on port 8008
+  against a real upload with a deliberate programme-code mismatch, created
+  via `POST /api/uploads/original-path`): bulk drop-down options render as
+  e.g. `F-P2-Level 7-P-Advancing Community Practitioner Nurse Prescribing
+  V150 (level seven)` and `R-AN1-B Nurs (Hons)-F-BN (Hons) Adult Nursing`;
+  select-all -> pick a programme -> Submit -> the record correctly resolved
+  to `Success` on Upload Summary; row-level drop-down confirmed unchanged
+  (title only, e.g. "BN (Hons) Adult Nursing"). Test upload batch removed
+  afterward (`rm backend/data/aei_upload.db`, reseeds clean on next start).
+
+**(c) Alternate Path override - assessed, confirmed already correct, no
+code change.** The requester added a third bullet under `requirements.md`
+section 5 ("in the backend, the web app", Alternate Path): "the training
+type, programme code, academic route of the selected AEI programme... override
+the values of corresponding columns of the file, and will be written into
+'upload students' table." Asked to assess only, not fix.
+
+- Assessment: `app/routers/uploads.py::upload_alternate_path` already does
+  exactly this. Building each `UploadStudent`, a dict comprehension strips
+  `nmc_traininginstitutecode`/`nmc_trainingtype`/`nmc_programme`/
+  `nmc_academicroute` out of whatever the parsed file row contained, then
+  the same four keys are set unconditionally from the form-selected AEI
+  programme (`institute_code`/`nmc_trainingtype`/`nmc_programme`/
+  `nmc_academicroute`) right after - before matching, before the row is
+  ever written. This is original Phase 3 design (see that phase's log entry,
+  "Alternate path vs Original path row construction"), not new code.
+  Already covered by an existing test,
+  `test_alternate_path_overrides_file_programme_with_selected_programme`
+  (`backend/tests/test_phase3_uploads_api.py`), which uploads a row whose
+  file column claims the wrong programme and asserts it still succeeds -
+  only possible if the selected programme overrode the file's value before
+  matching.
+- Flagged back to the requester (not acted on unilaterally): the same
+  override also covers `nmc_traininginstitutecode`, which the new bullet
+  doesn't name (only training type/programme/route). **Requester confirmed
+  (2026-08-24) this is fine/intended** - the selected institute overriding a
+  differing file value is correct behaviour, same as the three named
+  columns. Documented here so it isn't re-litigated as an open question in
+  a future pass.
+- No code changed for this item - assessment only, per instruction.
+
+**Verification for this addendum, overall:** `cd backend && uv run pytest -v`
+- 73/73 pass. `cd frontend && npx tsc --noEmit` - clean; `npx vitest run` -
+66/66 pass; `npx eslint app` - clean; `npm run build` - static export
+succeeds, 8 routes prerendered (`/`, `/select-institute`, plus the 6
+existing routes). Live Playwright walkthrough covering (a) and (b) as
+detailed above; (c) required no live verification since no code changed.
+`.playwright-mcp/` screenshot directory and the test upload batch created
+during verification were cleaned up afterward.
+
+**Deliverable state:** (a) and (b) tested and confirmed by the requester
+(2026-08-24); this addendum is that confirmation's documentation update, as
+signalled by the requester once testing was complete. (c) remains assessment-
+only per instruction - no further action expected unless the requester asks
+for a documentation wording change to `requirements.md` itself.
