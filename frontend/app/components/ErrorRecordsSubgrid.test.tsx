@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ErrorRecordsSubgrid from "./ErrorRecordsSubgrid";
-import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "../lib/types";
+import type { ProgrammeTitleChoice, UploadStudent } from "../lib/types";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -14,15 +14,12 @@ afterEach(() => {
   push.mockClear();
 });
 
-const PROGRAMME_CHOICES: ProgrammeChoice[] = [
-  { nmc_trainingtype: "R", nmc_programme: "SC1", nmc_academicroute: "B Nurs (Hons)", nmc_programmename: "Pre-registration nursing - Child" },
-];
-
 const PROGRAMME_TITLE_CHOICES: ProgrammeTitleChoice[] = [
   {
     nmc_trainingtype: "R",
     nmc_programme: "SC1",
     nmc_academicroute: "B Nurs (Hons)",
+    nmc_qualificationlevel: "6",
     nmc_aeiprogrammetitle: "BN (Hons) Children's Nursing",
   },
 ];
@@ -74,7 +71,6 @@ function renderGrid(rows: UploadStudent[]) {
   return render(
     <ErrorRecordsSubgrid
       initialRows={rows}
-      programmeChoices={PROGRAMME_CHOICES}
       programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
       instituteCode="1315"
       instituteName="University of Chester"
@@ -113,7 +109,10 @@ describe("ErrorRecordsSubgrid", () => {
     await user.click(selectAll);
     expect(selectAll).toBeChecked();
 
-    await user.selectOptions(screen.getByLabelText("Revised Programme"), "R|SC1|B Nurs (Hons)");
+    await user.selectOptions(
+      screen.getByLabelText("Revised Programme"),
+      "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing"
+    );
     await user.click(screen.getByRole("button", { name: "Submit" }));
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -145,7 +144,10 @@ describe("ErrorRecordsSubgrid", () => {
     renderGrid([makeRow(1)]);
 
     await user.click(screen.getByRole("checkbox", { name: "select all" }));
-    await user.selectOptions(screen.getByLabelText("Revised Programme"), "R|SC1|B Nurs (Hons)");
+    await user.selectOptions(
+      screen.getByLabelText("Revised Programme"),
+      "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing"
+    );
     await user.click(screen.getByRole("button", { name: "Submit" }));
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -162,6 +164,14 @@ describe("ErrorRecordsSubgrid", () => {
     expect(push).toHaveBeenCalledWith(
       "/upload-summary?institute_code=1315&institute_name=University+of+Chester"
     );
+  });
+
+  it("bulk Revised Programme drop-down shows the training type/programme/route/qualification level/title concatenation", () => {
+    renderGrid([makeRow(1)]);
+    const bulkSelect = screen.getByLabelText("Revised Programme");
+    expect(
+      within(bulkSelect).getByText("R-SC1-B Nurs (Hons)-6-BN (Hons) Children's Nursing")
+    ).toBeInTheDocument();
   });
 
   it("per-row Revised Programme column lists distinct programme titles, not the concatenated label", () => {
@@ -201,7 +211,6 @@ describe("ErrorRecordsSubgrid", () => {
       <ErrorRecordsSubgrid
         key="load-1"
         initialRows={[makeRow(1), makeRow(2)]}
-        programmeChoices={PROGRAMME_CHOICES}
         programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
         instituteCode="1315"
         instituteName="University of Chester"
@@ -213,7 +222,6 @@ describe("ErrorRecordsSubgrid", () => {
       <ErrorRecordsSubgrid
         key="load-2"
         initialRows={[makeRow(2)]}
-        programmeChoices={PROGRAMME_CHOICES}
         programmeTitleChoices={PROGRAMME_TITLE_CHOICES}
         instituteCode="1315"
         instituteName="University of Chester"

@@ -7,15 +7,14 @@ import PageShell from "../components/PageShell";
 import ErrorRecordsSubgrid from "../components/ErrorRecordsSubgrid";
 import { primaryButtonClass } from "../components/buttonStyles";
 import { nameLabel, toBritishDateTime, uploadSummaryPath } from "../lib/format";
-import { getBatch, getProgrammes, getProgrammeTitles } from "../lib/api";
-import type { BatchDetail, ProgrammeChoice, ProgrammeTitleChoice } from "../lib/types";
+import { getBatch, getProgrammeTitles } from "../lib/api";
+import type { BatchDetail, ProgrammeTitleChoice } from "../lib/types";
 
 function UploadResultContent() {
   const searchParams = useSearchParams();
   const batchId = Number(searchParams.get("batchId"));
 
   const [batch, setBatch] = useState<BatchDetail | null | undefined>(undefined);
-  const [programmeChoices, setProgrammeChoices] = useState<ProgrammeChoice[]>([]);
   const [programmeTitleChoices, setProgrammeTitleChoices] = useState<ProgrammeTitleChoice[]>([]);
   // Bumped on every successful load and used as ErrorRecordsSubgrid's `key`,
   // so a bfcache-triggered reload remounts it with fresh initialRows rather
@@ -28,15 +27,10 @@ function UploadResultContent() {
       getBatch(batchId)
         .then((data) => {
           setBatch(data);
-          return Promise.all([
-            getProgrammes(data.nmc_institutecode),
-            getProgrammeTitles(data.nmc_institutecode),
-          ]);
+          return getProgrammeTitles(data.nmc_institutecode);
         })
-        .then((result) => {
-          if (!result) return;
-          const [choices, titleChoices] = result;
-          setProgrammeChoices(choices);
+        .then((titleChoices) => {
+          if (!titleChoices) return;
           setProgrammeTitleChoices(titleChoices);
           setLoadCount((n) => n + 1);
         })
@@ -161,7 +155,6 @@ function UploadResultContent() {
       <ErrorRecordsSubgrid
         key={loadCount}
         initialRows={batch.error_records}
-        programmeChoices={programmeChoices}
         programmeTitleChoices={programmeTitleChoices}
         instituteCode={batch.nmc_institutecode}
         instituteName={batch.institute_name}

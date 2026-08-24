@@ -17,6 +17,7 @@ class ProgrammeTitleChoiceOut(BaseModel):
     nmc_trainingtype: str
     nmc_programme: str
     nmc_academicroute: str
+    nmc_qualificationlevel: str
     nmc_aeiprogrammetitle: str
 
 

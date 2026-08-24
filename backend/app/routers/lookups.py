@@ -41,6 +41,7 @@ def get_programme_titles(
             nmc_trainingtype=p.nmc_trainingtype,
             nmc_programme=p.nmc_programme,
             nmc_academicroute=p.nmc_academicroute,
+            nmc_qualificationlevel=p.nmc_qualificationlevel,
             nmc_aeiprogrammetitle=p.nmc_aeiprogrammetitle,
         )
         for p in choices

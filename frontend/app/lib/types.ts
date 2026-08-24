@@ -24,6 +24,7 @@ export interface ProgrammeTitleChoice {
   nmc_trainingtype: string;
   nmc_programme: string;
   nmc_academicroute: string;
+  nmc_qualificationlevel: string;
   nmc_aeiprogrammetitle: string;
 }
 
