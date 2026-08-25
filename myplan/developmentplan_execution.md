@@ -1845,3 +1845,77 @@ during verification were cleaned up afterward.
 signalled by the requester once testing was complete. (c) remains assessment-
 only per instruction - no further action expected unless the requester asks
 for a documentation wording change to `requirements.md` itself.
+
+### Post-Phase 8 - Business Review Follow-up: Revised Programme Drop-downs Aligned (2026-08-25)
+
+Further business review of (b) above: both Error Records subgrid "Revised
+Programme" drop-downs - the bulk one above the grid (Enhancement 1) and each
+row's own (Enhancement 2) - must show the **same** candidate list and label,
+dropped back to 4 fields (`nmc_trainingtype-nmc_programme-nmc_academicroute-
+nmc_qualificationlevel`, e.g. `R-SC1-B Nurs (Hons)-F`), filtered to the
+selected institute, in ascending order. This drops `nmc_aeiprogrammetitle`
+from the bulk drop-down's label (added just one day earlier in (b) above) and
+replaces the per-row drop-down's previous title-only list entirely. Per the
+same doc-update convention as (b), code changed first; this doc update only
+happened once the requester confirmed the fix by manual test.
+
+- `frontend/app/lib/format.ts`: `programmeTitleLabel()` narrowed from 5
+  fields back to 4 (drops `nmc_aeiprogrammetitle`); its parameter type
+  narrowed with `Pick<...>` accordingly.
+- `frontend/app/components/ErrorRecordsSubgrid.tsx`: per-row drop-down
+  switched from rendering `choice.nmc_aeiprogrammetitle` directly to
+  `programmeTitleLabel(choice)` - it had never actually matched (b)'s
+  intended "per-row unchanged, title-only" design in a way that stayed
+  correct once the bulk formula changed shape; now both drop-downs share
+  one label. `programmeTitleChoiceKey`'s 4th (disambiguating) segment
+  switched from `nmc_aeiprogrammetitle` to `nmc_qualificationlevel` to match
+  what's now displayed. Added `compareProgrammeTitleChoices()` (by
+  trainingtype, then programme, then academicroute, then qualificationlevel)
+  and a `sortedProgrammeTitleChoices` array both drop-downs render from -
+  the backend's `/api/programme-titles` sorts by `nmc_aeiprogrammetitle`
+  (correct for Upload Programme Selection's HEI Programme drop-down, which
+  still needs that field and ordering - left untouched), so the new
+  ascending-order requirement for these two drop-downs is applied
+  client-side rather than by changing the shared endpoint.
+- Backend untouched: `GET /api/programme-titles`, `ProgrammeTitleChoiceOut`,
+  and `list_programme_titles` still return/expose `nmc_aeiprogrammetitle` -
+  still required by Upload Programme Selection's separate HEI Programme
+  drop-down, out of scope for this request.
+- Tests: `format.test.ts`'s `programmeTitleLabel` case updated for the
+  4-field output; `ErrorRecordsSubgrid.test.tsx` - option-value key updated
+  (`trainingtype|programme|route|qualificationlevel`, not `|title`), the
+  bulk-label and per-row assertions rewritten to expect the same 4-field
+  string on both (the old "per-row shows distinct titles, not the
+  concatenated label" test was inverted into the opposite assertion), and a
+  new test confirms both drop-downs render out-of-order input choices in
+  ascending order. **73/73 backend** (unaffected, no backend change),
+  **67/67 frontend** tests pass; `tsc --noEmit` and `eslint app` both clean.
+- **Root cause of the requester's first "I don't see any change" report:**
+  not a code defect - `backend/app/main.py` serves the prebuilt static
+  export at `frontend/out` (`StaticFiles(directory=FRONTEND_DIST, ...)`),
+  not the source files directly, and `frontend/out` hadn't been rebuilt
+  since the source edit (confirmed by comparing file mtimes: `out/upload-
+  result` timestamped a full day before `ErrorRecordsSubgrid.tsx`'s edit).
+  Fixed by `cd frontend && npm run build`, then starting
+  `uv run uvicorn app.main:app --port 8008`. This is exactly the sequencing
+  `manual_testing_guide.md` section 1 already documents ("only needed the
+  first time, or after frontend changes") - worth the requester
+  double-checking a rebuild happened before re-testing a frontend-only fix
+  when the server was already running.
+- Live-verified (Playwright, rebuilt `frontend/out`, backend on port 8008,
+  batch id 1 / institute `1315`): both the bulk drop-down and the first
+  row's drop-down render the identical 9-option list in the same order -
+  `F-P2-Level 7-F`, `F-P2-Level 7-P`, `R-AN1-B Nurs (Hons)-A`, `R-AN1-B Nurs
+  (Hons)-F`, `R-SC1-B Nurs (Hons)-A`, `R-SC1-B Nurs (Hons)-F`, `S-DF3-PG
+  Dip-A`, `S-DF3-PG Dip-F` (plus the placeholder "Select a programme") -
+  confirming no `nmc_aeiprogrammetitle` text remains in either drop-down.
+  **Requester confirmed by manual test (2026-08-25)** before this doc
+  update was made.
+- `UI_requirements.md` updated to match (see below) - this is the fourth doc
+  touched by this request, alongside this file and
+  `myplan/manual_testing_guide.md`.
+
+**Deliverable state:** tested and confirmed by the requester (2026-08-25).
+`UI_requirements.md`'s Enhancement 1 and Enhancement 2 Revised Programme
+bullets both now specify the 4-field concatenation and reference this
+business review date.

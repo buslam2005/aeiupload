@@ -111,7 +111,7 @@ describe("ErrorRecordsSubgrid", () => {
 
     await user.selectOptions(
       screen.getByLabelText("Revised Programme"),
-      "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing"
+      "R|SC1|B Nurs (Hons)|6"
     );
     await user.click(screen.getByRole("button", { name: "Submit" }));
 
@@ -146,7 +146,7 @@ describe("ErrorRecordsSubgrid", () => {
     await user.click(screen.getByRole("checkbox", { name: "select all" }));
     await user.selectOptions(
       screen.getByLabelText("Revised Programme"),
-      "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing"
+      "R|SC1|B Nurs (Hons)|6"
     );
     await user.click(screen.getByRole("button", { name: "Submit" }));
 
@@ -166,31 +166,64 @@ describe("ErrorRecordsSubgrid", () => {
     );
   });
 
-  it("bulk Revised Programme drop-down shows the training type/programme/route/qualification level/title concatenation", () => {
+  it("bulk Revised Programme drop-down shows the training type/programme/route/qualification level concatenation", () => {
     renderGrid([makeRow(1)]);
     const bulkSelect = screen.getByLabelText("Revised Programme");
-    expect(
-      within(bulkSelect).getByText("R-SC1-B Nurs (Hons)-6-BN (Hons) Children's Nursing")
-    ).toBeInTheDocument();
+    expect(within(bulkSelect).getByText("R-SC1-B Nurs (Hons)-6")).toBeInTheDocument();
   });
 
-  it("per-row Revised Programme column lists distinct programme titles, not the concatenated label", () => {
+  it("both Revised Programme drop-downs list choices in ascending order regardless of input order", () => {
+    const outOfOrderChoices: ProgrammeTitleChoice[] = [
+      {
+        nmc_trainingtype: "R",
+        nmc_programme: "SC1",
+        nmc_academicroute: "B Nurs (Hons)",
+        nmc_qualificationlevel: "F",
+        nmc_aeiprogrammetitle: "BN (Hons) Children's Nursing",
+      },
+      {
+        nmc_trainingtype: "R",
+        nmc_programme: "AN1",
+        nmc_academicroute: "B Nurs (Hons)",
+        nmc_qualificationlevel: "F",
+        nmc_aeiprogrammetitle: "BN (Hons) Adult Nursing",
+      },
+    ];
+    render(
+      <ErrorRecordsSubgrid
+        initialRows={[makeRow(1)]}
+        programmeTitleChoices={outOfOrderChoices}
+        instituteCode="1315"
+        instituteName="University of Chester"
+      />
+    );
+
+    const expectedOrder = ["R-AN1-B Nurs (Hons)-F", "R-SC1-B Nurs (Hons)-F"];
+    const bulkOptionLabels = screen
+      .getByLabelText("Revised Programme")
+      .querySelectorAll("option:not([value=''])");
+    expect([...bulkOptionLabels].map((o) => o.textContent)).toEqual(expectedOrder);
+
+    const rowSelect = screen.getAllByRole("combobox")[1];
+    const rowOptionLabels = rowSelect.querySelectorAll("option:not([value=''])");
+    expect([...rowOptionLabels].map((o) => o.textContent)).toEqual(expectedOrder);
+  });
+
+  it("per-row Revised Programme column shows the same training type/programme/route/qualification level concatenation as the bulk drop-down", () => {
     renderGrid([makeRow(1)]);
     const rowSelect = screen.getAllByRole("combobox")[1];
-    expect(within(rowSelect).getByText("BN (Hons) Children's Nursing")).toBeInTheDocument();
-    expect(
-      within(rowSelect).queryByText("R-SC1-B Nurs (Hons)-Pre-registration nursing - Child")
-    ).not.toBeInTheDocument();
+    expect(within(rowSelect).getByText("R-SC1-B Nurs (Hons)-6")).toBeInTheDocument();
+    expect(within(rowSelect).queryByText("BN (Hons) Children's Nursing")).not.toBeInTheDocument();
   });
 
-  it("resubmitting a single row posts the programme triple behind the selected title", async () => {
+  it("resubmitting a single row posts the programme triple behind the selected concatenation", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
     vi.stubGlobal("fetch", fetchMock);
     const user = userEvent.setup();
     renderGrid([makeRow(1)]);
 
     const rowSelect = screen.getAllByRole("combobox")[1];
-    await user.selectOptions(rowSelect, "R|SC1|B Nurs (Hons)|BN (Hons) Children's Nursing");
+    await user.selectOptions(rowSelect, "R|SC1|B Nurs (Hons)|6");
     await user.click(screen.getByRole("button", { name: "Resubmit" }));
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);

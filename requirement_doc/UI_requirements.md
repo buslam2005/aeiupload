@@ -104,8 +104,9 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
 #### Enhancement 1 - underneath 'Error Records' title - bulk upload with rectified programme
 - Underneath the subgrid's title 'Error Records' there are
     - a checkbox to select all individual records in the subgrid
-    - Revised Programme drop-down box shows all available programmes of an institute.
-        - concatenate nmc_trainingtype, nmc_programme, nmc_academicroute, nmc_qualificationlevel, nmc_aeiprorammenametitle with hyphen in between - refer to the layout only in ErrorRecordsSubgridSingleSelection.png
+    - Revised Programme drop-down box shows all available programmes of the selected institute (nmc_traininginstitutecode matches the selected institute), in ascending order.
+        - concatenate nmc_trainingtype, nmc_programme, nmc_academicroute, nmc_qualificationlevel with hyphen in between, e.g. R-SC1-B Nurs (Hons)-F - refer to the layout only in ErrorRecordsSubgridSingleSelection.png
+        - Per business review (2026-08-25), this drop-down no longer includes nmc_aeiprogrammetitle.
     - Once a programme is selected from the drop-down box and then click 'Submit' button, all individual records are uploaded with the programme.
         - Once done, user is directed to Upload Summary page, and sees a new record for the recent submission.
 
@@ -129,11 +130,14 @@ This page is the next page after user clicks 'Multiple courses...' button, and i
     - Course Code (nmc_programme)
     - Academic Route (nmc_academicroute)
     - Revised Programme
-        - A drop down box listing the institute's distinct nmc_aeiprogrammetitle
-          values (same candidate list as Upload Programme Selection's HEI
-          Programme drop-down); single choice selection. Shows programme
-          titles rather than the training type/course code/academic route
-          concatenation, so the user can pick the right HEI programme by name.
+        - A drop-down box listing the selected institute's programmes, in ascending
+          order; single choice selection. Same candidate list and label as the bulk
+          Revised Programme drop-down in Enhancement 1 - concatenate
+          nmc_trainingtype, nmc_programme, nmc_academicroute, nmc_qualificationlevel
+          with hyphen in between, e.g. R-SC1-B Nurs (Hons)-F.
+        - Per business review (2026-08-25), this replaces the earlier
+          nmc_aeiprogrammetitle-only list, so both Revised Programme drop-downs
+          show the same field combination.
     - Resubmit button
         - Once the resubmit button is pressed, it triggers the backend to process the record, and then directs the user to Upload Summary page, and sees a new record for the recent submission.
     - Drop-down button (consists of View Details, Delete)

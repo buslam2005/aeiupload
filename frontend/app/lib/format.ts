@@ -54,16 +54,20 @@ export function rowProgrammeLabel(row: UploadStudent): string | null {
   });
 }
 
-/** Error Records subgrid's bulk "Revised Programme" drop-down label - hyphen-joins
- * training type, programme, academic route, qualification level, and HEI programme
- * title, per UI_requirements.md's Enhancement 1. */
-export function programmeTitleLabel(choice: ProgrammeTitleChoice): string {
+/** Error Records subgrid's "Revised Programme" drop-down label (both the bulk
+ * drop-down and each row's own) - hyphen-joins training type, programme,
+ * academic route, and qualification level. */
+export function programmeTitleLabel(
+  choice: Pick<
+    ProgrammeTitleChoice,
+    "nmc_trainingtype" | "nmc_programme" | "nmc_academicroute" | "nmc_qualificationlevel"
+  >
+): string {
   return [
     choice.nmc_trainingtype,
     choice.nmc_programme,
     choice.nmc_academicroute,
     choice.nmc_qualificationlevel,
-    choice.nmc_aeiprogrammetitle,
   ].join("-");
 }
 

@@ -471,6 +471,9 @@ DB) and manually walk the whole journey in the browser, for **both** paths:
       concatenation. The bulk "Revised Programme" drop-down above the
       grid is unchanged (still shows the concatenated form) - this was an
       intentional, narrower change to just the per-row column.
+      **Superseded (2026-08-25) - see the "Post-Phase 8 - Business Review
+      Follow-up" section below**: both drop-downs now show the same
+      4-field concatenation instead.
 12. **File-upload error handling (2026-08-23)** - see requirements.md's
     "Error handling at file upload" section for the exact wording, and the
     matching `developmentplan_execution.md` addendum for root cause. Test on
@@ -614,6 +617,10 @@ run the full app per section 1.
    5-field concatenation - that column's own spec wasn't edited. Select-all -> pick
    a programme from the bulk drop-down -> Submit still resolves the row(s) to
    `Success` on Upload Summary, exactly as before.
+   **Superseded (2026-08-25)** - the 5-field form and the per-row/bulk
+   difference described in this step were both revised the next day; see the
+   "Post-Phase 8 - Business Review Follow-up" section below for the current
+   (4-field, both drop-downs matching) behaviour.
 4. **Alternate Path institute-code override** (assessed as already-working, not a
    new feature - included here for completeness of this round's sign-off): upload a
    file via "Same course for all Students" whose row has a real student's PIN but a
@@ -624,3 +631,44 @@ run the full app per section 1.
    behaviour from Phase 3 (`test_alternate_path_overrides_file_programme_with_selected_programme`),
    re-confirmed correct against the business's newly-added requirements.md bullet -
    no code changed for this item.
+
+## Post-Phase 8 - Business Review Follow-up (2026-08-25)
+
+Rebuild first (`cd frontend && npm run build`) so `frontend/out` is current -
+if you re-test after a code change and see no difference, this is the first
+thing to check (`ls -la frontend/out/upload-result` vs the source file's own
+timestamp), before assuming the fix didn't work. Then run the full app per
+section 1 above.
+
+1. **Both Revised Programme drop-downs now match**: create a batch with at
+   least one Error Records row (e.g. an original-path file with a
+   deliberately wrong Course Code). On Upload Result, open the bulk
+   "Revised Programme" drop-down above the Error Records subgrid, and
+   separately a row's own "Revised Programme" drop-down - confirm **both**
+   list the same options, in the same order, each reading as **4** hyphenated
+   segments (training type - programme - academic route - qualification
+   level), e.g. `R-SC1-B Nurs (Hons)-F`. Neither drop-down should show the
+   HEI programme title (e.g. "BN (Hons) Adult Nursing") anywhere.
+2. **Ascending order**: with more than one Course Code/Academic Route
+   combination available for the institute, confirm both drop-downs list
+   their options in ascending order (training type, then programme, then
+   academic route, then qualification level) - e.g. for institute `1315`:
+   `F-P2-Level 7-F`, `F-P2-Level 7-P`, `R-AN1-B Nurs (Hons)-A`, `R-AN1-B Nurs
+   (Hons)-F`, `R-SC1-B Nurs (Hons)-A`, `R-SC1-B Nurs (Hons)-F`, `S-DF3-PG
+   Dip-A`, `S-DF3-PG Dip-F`.
+3. **Institute-scoped**: confirm every option in both drop-downs belongs to
+   the batch's own institute (no other institute's programmes appear) -
+   already true before this round (both drop-downs were already backed by
+   `GET /api/programme-titles?institute_code=...`), re-confirmed here since
+   it's now an explicit requirement rather than an incidental side effect.
+4. Select-all -> pick a programme from the bulk drop-down -> Submit, and
+   separately a single row -> pick a programme -> Resubmit: both still
+   resolve the row(s) to `Success` on Upload Summary, exactly as before -
+   this round only changed what the drop-down options are labelled/ordered
+   as, not what gets submitted (still just training type/programme/academic
+   route; qualification level is read off the option but not sent to the
+   backend, same as before).
+5. Upload Programme Selection's own "HEI Programme" drop-down (a different
+   page, different requirement) is unaffected by this round - confirm it
+   still lists **8** distinct `nmc_aeiprogrammetitle` titles for institute
+   `1315`, as in Phase 4/5 above.
