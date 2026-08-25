@@ -14,12 +14,12 @@ interface Props {
   instituteName: string | null;
 }
 
-// Includes the title so two qualification-level variants sharing the same
+// Includes the qualification level so two variants sharing the same
 // (trainingtype, programme, academicroute) triple still get distinct <option>
 // keys/values - parseProgrammeChoiceKey only reads the first 3 segments, so
-// the trailing title segment is ignored on submission.
+// the trailing qualification-level segment is ignored on submission.
 function programmeTitleChoiceKey(choice: ProgrammeTitleChoice): string {
-  return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}|${choice.nmc_aeiprogrammetitle}`;
+  return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}|${choice.nmc_qualificationlevel}`;
 }
 
 function parseProgrammeChoiceKey(key: string): {
@@ -29,6 +29,17 @@ function parseProgrammeChoiceKey(key: string): {
 } {
   const [nmc_trainingtype, nmc_programme, nmc_academicroute] = key.split("|");
   return { nmc_trainingtype, nmc_programme, nmc_academicroute };
+}
+
+/** Ascending order by training type, then programme, then academic route,
+ * then qualification level - the same field order programmeTitleLabel joins. */
+function compareProgrammeTitleChoices(a: ProgrammeTitleChoice, b: ProgrammeTitleChoice): number {
+  return (
+    a.nmc_trainingtype.localeCompare(b.nmc_trainingtype) ||
+    a.nmc_programme.localeCompare(b.nmc_programme) ||
+    a.nmc_academicroute.localeCompare(b.nmc_academicroute) ||
+    a.nmc_qualificationlevel.localeCompare(b.nmc_qualificationlevel)
+  );
 }
 
 export default function ErrorRecordsSubgrid({
@@ -43,6 +54,8 @@ export default function ErrorRecordsSubgrid({
   const [bulkRevisedProgramme, setBulkRevisedProgramme] = useState("");
   const [rowRevisedProgramme, setRowRevisedProgramme] = useState<Record<number, string>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const sortedProgrammeTitleChoices = [...programmeTitleChoices].sort(compareProgrammeTitleChoices);
 
   const allSelected = rows.length > 0 && selectedIds.size === rows.length;
 
@@ -109,7 +122,7 @@ export default function ErrorRecordsSubgrid({
             onChange={(e) => setBulkRevisedProgramme(e.target.value)}
           >
             <option value="">Select a programme</option>
-            {programmeTitleChoices.map((choice) => (
+            {sortedProgrammeTitleChoices.map((choice) => (
               <option key={programmeTitleChoiceKey(choice)} value={programmeTitleChoiceKey(choice)}>
                 {programmeTitleLabel(choice)}
               </option>
@@ -169,9 +182,9 @@ export default function ErrorRecordsSubgrid({
                     }
                   >
                     <option value="">Select a programme</option>
-                    {programmeTitleChoices.map((choice) => (
+                    {sortedProgrammeTitleChoices.map((choice) => (
                       <option key={programmeTitleChoiceKey(choice)} value={programmeTitleChoiceKey(choice)}>
-                        {choice.nmc_aeiprogrammetitle}
+                        {programmeTitleLabel(choice)}
                       </option>
                     ))}
                   </select>
