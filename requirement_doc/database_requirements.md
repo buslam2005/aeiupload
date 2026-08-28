@@ -85,6 +85,66 @@ following tables are needed to fulfil the logic and meet the demonstration purpo
     - nmc_totalsuccessrecords e.g. 11 is the number of successfully uploaded records
     - nmc_totalfailedrecords e.g. 15 is the number of failed upload records
 
+## table: master applicants
+- It contains the master applicants for management of authorized signatories
+- Table's columns are
+    - nmc_pin
+    - nmc_lastname
+    - nmc_firstname
+    - nmc_regexpirydate
+    - nmc_addedby
+    - nmc_createdon
+    - nmc_institutecode
+    - nmc_institutename
+    - nmc_aeiprogrammetitle
+    - nmc_trainingtypecode
+    - nmc_programmecode
+    - nmc_academiclevel
+    - nmc_qualificationroute
+    - nmc_registerpart1
+    - nmc_registerpart2
+    - nmc_registerpart3
+    - nmc_practicetype1
+    - nmc_practicetype2
+    - nmc_practicetype3
+    - nmc_active
+    - nmc_course1trainingtypecode
+    - nmc_course1programmecode
+    - nmc_course1academiclevel
+    - nmc_course1qualificationroute
+    - nmc_course2trainingtypecode
+    - nmc_course2programmecode
+    - nmc_course2academiclevel
+    - nmc_course2qualificationroute
+    - nmc_course3trainingtypecode
+    - nmc_course3programmecode
+    - nmc_course3academiclevel
+    - nmc_course3qualificationroute
+    - nmc_course4trainingtypecode
+    - nmc_course4programmecode
+    - nmc_course4academiclevel
+    - nmc_course4qualificationroute
+    - nmc_course5trainingtypecode
+    - nmc_course5programmecode
+    - nmc_course5academiclevel
+    - nmc_course5qualificationroute
+
+- also includes system attributes for primary keys, foreign keys
+- pre-populate with data from /requiremnt_doc/sample_data/masterapplicants.csv at table creation.
+
+## table: audit tables
+- It contains the change history of the applicant
+- Table's columns are
+    - nmc_pin
+    - nmc_lastname
+    - nmc_firstname
+    - nmc_regexpirydate
+    - nmc_addedby
+    - nmc_modifiedon
+    - nmc_attributechanged
+    - nmc_previousvalue
+    - nmc_newvalue
+- do not pre-load any data at app startup    
 
 
 
