@@ -102,3 +102,67 @@ class UploadStudent(SQLModel, table=True):
     nmc_error3description: str | None = None
     nmc_error4description: str | None = None
     nmc_error5description: str | None = None
+
+
+class MasterApplicant(SQLModel, table=True):
+    __tablename__ = "master_applicants"
+
+    nmc_pin: str = Field(primary_key=True)
+    nmc_lastname: str
+    nmc_firstname: str
+    nmc_regexpirydate: str
+    nmc_addedby: str
+    nmc_createdon: str
+    nmc_institutecode: str
+    nmc_institutename: str
+    nmc_aeiprogrammetitle: str
+    nmc_trainingtypecode: str
+    nmc_programmecode: str
+    nmc_academiclevel: str
+    nmc_qualificationroute: str
+    nmc_registerpart1: str
+    nmc_registerpart2: str | None = None
+    nmc_registerpart3: str | None = None
+    nmc_practicetype1: str | None = None
+    nmc_practicetype2: str | None = None
+    nmc_practicetype3: str | None = None
+    nmc_active: str
+
+    # Course 1 mirrors the top-level course fields above at data creation - see
+    # developmentplan_AS.md Assumption 2. Courses 2-5 are populated by "Add
+    # Course" (max 4 additional) and purged by "Remove Course".
+    nmc_course1trainingtypecode: str
+    nmc_course1programmecode: str
+    nmc_course1academiclevel: str
+    nmc_course1qualificationroute: str
+    nmc_course2trainingtypecode: str | None = None
+    nmc_course2programmecode: str | None = None
+    nmc_course2academiclevel: str | None = None
+    nmc_course2qualificationroute: str | None = None
+    nmc_course3trainingtypecode: str | None = None
+    nmc_course3programmecode: str | None = None
+    nmc_course3academiclevel: str | None = None
+    nmc_course3qualificationroute: str | None = None
+    nmc_course4trainingtypecode: str | None = None
+    nmc_course4programmecode: str | None = None
+    nmc_course4academiclevel: str | None = None
+    nmc_course4qualificationroute: str | None = None
+    nmc_course5trainingtypecode: str | None = None
+    nmc_course5programmecode: str | None = None
+    nmc_course5academiclevel: str | None = None
+    nmc_course5qualificationroute: str | None = None
+
+
+class AuditRecord(SQLModel, table=True):
+    __tablename__ = "audit_records"
+
+    id: int | None = Field(default=None, primary_key=True)
+    nmc_pin: str
+    nmc_lastname: str
+    nmc_firstname: str
+    nmc_regexpirydate: str
+    nmc_addedby: str
+    nmc_modifiedon: str
+    nmc_attributechanged: str
+    nmc_previousvalue: str | None = None
+    nmc_newvalue: str | None = None

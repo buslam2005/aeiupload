@@ -195,3 +195,118 @@ message).
 #### tab 4: 4. Previous Institute
 - no field
 
+
+# Authorized Signatories Provision
+
+This document depcists UI requirements of each page Authorized Signatories Provision (another branch of AEI portal besides AEI Upload), and more importantly the field mappings and the logic of navigation across the pages.
+
+- the elements of each page must follow the diagram with name specified. Diagrams are stored in /requirement_doc/diagrams/
+- spacing and layout of elements of each page should be consistent when user navigates across pages.
+- for the colour scheme, follow https://www.nmc.org.uk/education/approved-programmes/
+
+## AuthorisedSignatoriesFirstPage.png
+- 'Authorised Signatories First Page'
+- after user clicks 'Manage approved signatories' tile in AEI Portal Landing Page, the user is directed to this page.
+- To display three drop-down boxes: AEI, Name, NMC PIN, and to show 'Search Signatories' button, but indeed they are not functional. Just static is fine for demo purpose.
+- user can flip between 'Active Signatories' and 'Inactive Signatories' in the toggle above the subgrid
+  - the subgrid shows subgrid of 'Active Signatories' by default.
+  - if 'Inactive Signatories' is selected, the subgrid shows records of deactivated signatories
+- The subgrids consist of the following set of columns: label name - table field name of 'master applicants' table
+  - Name - concatenate of nmc_firstname, nmc_lastname with a space
+  - Approved course title - concatenate of nmc_trainingtypecode, nmc_programmecode
+  - Practice Type - concatenate of nmc_practicetype1, nmc_practicetype2, nmc_practicetype3, separated by new line
+  - Register Part - concatenate of nmc_registerpart1, nmc_registerpart2, nmc_registerpart3, separated by new line
+  - Registration expiry date - nmc_regexpirydate
+  - Date Created - nmc_createdon
+  - By Who - nmc_addedby
+  - View Details > a link to AuthorisedSignatoriesFirstPage_ViewDetails.png page
+  - View Audits > a link to AuthorisedSignatoriesFirstPage_ViewAudits.png page
+  - Remove Signatory - think is a dead link. Do not perform deletion for demo purpose.
+- records with nmc_active = 'Yes'
+
+## AuthorisedSignatoriesFirstPage_ViewDetails.png
+- 'View Details' page
+- click from the 'View Details' link in an individual row of Active Signatories subgrid or Inactive Signatories subgrid
+- At the upper half of the page, it shows the following fields with mappings below (with 'master applicants' table). They are all static and not editable for demo purpose.
+  - NMC PIN - nmc_pin
+  - Surname - nmc_lastname
+  - Full Name - nmc_firstname
+  - Registration Expiry Date - nmc_regexpirydate
+  - Added By - nmc_addedby
+  - AEI - nmc_institutename
+  - Created On - nmc_createdon
+  - Register Part - concatenate of nmc_practicetype1, nmc_practicetype2, nmc_practicetype3, separated by new line
+  - Practice Type - concatenate of nmc_registerpart1, nmc_registerpart2, nmc_registerpart3, separated by new line
+
+- The course subgrid consists of the following columns (table.field). Field mappings are listed below
+  - Education Institution - master_applicants.nmc_institutename
+  - AEI Programme TItle - master_applicants.nmc_aeiprogrammetitle
+  - Training Type Code - master_applicants.nmc_trainingtype 
+  - Programme Code - master_applicants.nmc_trainingtypecode
+  - Academic Level - master_applicants.nmc_acacemiclevel
+  - Qualification Route (Additional column not shown in the screen capture) - master_applicants.nmc_qualificationroute
+  - link to Edit Course page - Course Lookup Records pop-up window
+  - link to delete the course record
+
+- After clicking 'Add Courses' button Course Lookup Records pop-up window.
+- This page is also navigated from the subgrid of Authorised Signatories Inactive Signatories' by clicking 'View Details' link in the individual row. Mentioned functionalities are available for the details of the deactivated signatory.
+
+## CourseLookupRecords.png
+- Course Lookup Record pop-up window
+- it only shows the distinct active programmes provided by the institute
+- The paginated subgrid consists of the following columns (table Programmes)
+  - Select checkbox (editable checkbox)
+  - Programme Title - programmes.nmc_programmename 
+  - Training Type Code - programmes.nmc_trainingtype
+  - Programme Code - programmes.nmc_programme
+  - Academic Level - programmes.nmc_academicroute
+  - Qualification Code - programmes.nmc_qualificationlevel
+
+- Layout and style should follow subgrids of other pages.
+- After clicking Add button, the selected programme is put in the next row of the subgrid.
+
+## AuthorisedSignatoriesFirstPage_ViewAudits.png
+- named as 'View Audits' page
+- user clicks 'View Details' link from the individual row of the subgrid, and then navigates to this page.
+- It shows the following columns with field mappings as below in paginated subgrid:
+  - Modified On (descending order or ascending order of rows) - audit_table.nmc_modifiedon
+  - Name - audit_table.nmc_attributechanged
+  - Old Value - audit_table.nmc_previousvalue
+  - New Value - audit_table.nmc_previousvalue
+  - Modified By - audit_table.nmc_addedby
+- This page is also navigated from the subgrid of Authorised Signatories Inactive Signatories' by clicking 'View Audits' link in the individual row. Mentioned functionalities are available for the details of the deactivated signatory.
+
+
+## AuthorisedSignatoriesFirstPage_InactiveSignatories.png
+- 'Authorised Signatories Inactive Signatories Page'
+
+- At the top half of the page, there are three drop-down boxes: AEI, Name, NMC PIN, and to show 'Search Signatories' button, but indeed they are not functional. Just static is fine for demo purpose.
+- The subgrid shows only deactivated signatories after the user flips to 'Inactive Signatories' in the toggle below the three drop-down boxes.
+- The subgrids consist of the following set of columns: label name - table field name
+  - Name - concatenate of nmc_firstname, nmc_lastname with a space
+  - Approved course title - concatenate of nmc_trainingtypecode, nmc_programmecode
+  - Practice Type - concatenate of nmc_practicetype1, nmc_practicetype2, nmc_practicetype3, separated by new line
+  - Register Part - concatenate of nmc_registerpart1, nmc_registerpart2, nmc_registerpart3, separated by new line
+  - Registration expiry date - nmc_regexpirydate
+  - Date Created - nmc_createdon
+  - By Who - nmc_addedby
+  - View Details > a link to AuthorisedSignatoriesFirstPage_ViewDetails.png page
+  - View Audits > a link to AuthorisedSignatoriesFirstPage_ViewAudits.png page
+  - no 'Remove Signatory'
+- records with nmc_active = 'No'
+
+## AuthorisedSignatories_AddNewSignatories1.png
+- This page is named as 'Add A Signatory Page 1'
+- Navigates by clicking 'Add new signatory' button in Authorised Signatories First Page
+- If both entered NMC_PIN and Surname match with the master records, navigate to 'Add A Signatory Detail' page
+  - else if one or both fields do not match, show the mismatch error underneath the textbox.
+
+## AuthorisedSignatories_AddNewSignatories_AddCourse.png
+- Authorised Signatories First Page
+- Navigates by clicking Submit button from 'Add A Signatory Page 1' page
+- the NMC_PIN and Surname inherits from the input of the previous page, whiel Full Name, Registration Expiry Date, Added By, AEI, Created On are extracted from table.
+- Register Part and Practice Type are also extracted from table. But the cross button is read-only and does not remove the Register Part/ Practice Type
+- After clicking 'Add Courses' button, Course Lookup Record pop-up window is shown.
+- Newly added course is appended to the subgrid underneath 'Add Courses' button.
+
+

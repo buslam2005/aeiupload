@@ -25,6 +25,7 @@ This web app is only a prototype to illustrate new features listed below.
 5. in the backend, the web app
     - stores each row of the file into  'upload students' table
     - refer to section 'upload file field mapping' for mapping file columns to fields of Upload Students table.
+    - The training type, programme code, academic route of the selected AEI programme (from Programmes table) override the values of corresponding columns of the file, and will be written into 'upload students' table.
     - if all attributes of 'upload students' table row match with a row in 'master students' table, nmc_rowstatus is updated to 'Success'. 
     - else it's updated to 'Failed', and mark the mistatch in fields nmc_error1description to nmc_error5description, say
         - the NMC Programme (course code) of the upload record does not match with the row in 'Master Students' table, and that's the first error. Then write 'NMC programme does not match with organization's record.' into field nmc_error1description. Institute Code, Training Type and Academic Route are checked the same way, each producing its own message under its own field (not one combined "Programme" message), so View Details can show each error under the field it belongs to.
@@ -56,7 +57,46 @@ This web app is only a prototype to illustrate new features listed below.
     c. user can click 'View Details' and move to the View Details page to see the info and errors underneath each field, make corrections and resubmit the record.
 
 ## Operation Logic of Authorized Signatory
-to be updated.
+### A. Edit a course for an active applicant
+- first page of AUthorized Signatory shows active applicants.
+    - can click 'View Details' in the individual line of the subgrid to read more attributes of an applicant
+- In the subgrid of View Details page, user can click 'Add Course' button to add another course offered by the institute. Maximum 4 additional courses.
+    - e.g. when a programme was linked ot the applicant, and the user adds one programme, then the training type code, programme code, academic route and qualiification of the selected AEI programme are inserted into corresponding nmc_course2... fields of 'master applicants' table.
+    - write a line in audit table
+        - nmc_attributechanged = 'Approved Course'
+        - nmc_previousvalue = <blank>
+        - nmc_newvalue = concatenate of nmc_courseXtrainingcode and nmc_courseXprogrammecode 
+- alternatively, user can click 'Remove Course' in individual line of the subgrid to remove a course.
+    - if there is just one course left, it cannot be removed.
+    - once a cause is removed, the corresponding 4 nmc_courseX... fields are purged.
+    - write a line in audit table
+        - nmc_attributechanged = 'Approved Course'
+        - nmc_previousvalue = concatenate of nmc_courseXtrainingcode and nmc_courseXprogrammecode
+        - nmc_newvalue = <blank>  
+
+### B. Edit a course for an inactive applicant
+- first page of AUthorized Signatory alternatively shows inactive applicants by flipping the toggle.
+    - can click 'View Details' in the individual line of the subgrid to read more attributes of an applicant
+- In the subgrid of View Details page, user can click 'Add Course' button to add another course offered by the institute. Maximum 4 additional courses.
+    - e.g. when a programme was linked ot the applicant, and the user adds one programme, then the training type code, programme code, academic route and qualiification of the selected AEI programme are inserted into corresponding nmc_course2... fields of 'master applicants' table.
+    - write a line in audit table
+        - nmc_attributechanged = 'Approved Course'
+        - nmc_previousvalue = <blank>
+        - nmc_newvalue = concatenate of nmc_courseXtrainingcode and nmc_courseXprogrammecode 
+- alternatively, user can click 'Remove Course' in individual line of the subgrid to remove a course.
+    - if there is just one course left, it cannot be removed.
+    - once a cause is removed, the corresponding 4 nmc_courseX... fields are purged.
+    - write a line in audit table
+        - nmc_attributechanged = 'Approved Course'
+        - nmc_previousvalue = concatenate of nmc_courseXtrainingcode and nmc_courseXprogrammecode
+        - nmc_newvalue = <blank>  
+- cannot delete any inactive applicant
+
+### B. Add a signatory
+- User can add a new signatory from the First Page
+- the entered PIN and surname must match with an active applicant in Master Applicants table
+- Besides listing the course(s) in the subgrid in the next page, user can add a course. Logic following the one in 2nd and 3rd points of 'A. Edit a course for an active applicant'; Drop a course is not allowed.
+
 
 ## database requirements
 refer to @database_requirements.md in /requirement_doc
@@ -106,3 +146,5 @@ refer to @UI_requirements.md in /requirement_doc
 - links in the page header and footer are not needed.
 - to run in localhost:8008
 - it will firstly built to be run in localhost, but it should be built to be run on a cloud webserver which allows limited users to access the prototype.
+
+
