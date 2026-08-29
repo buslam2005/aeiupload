@@ -682,6 +682,63 @@ Upload module's Phase 6 approach:
   also reset `master_applicants`/`audit_records`, so the whole demo database resets
   cleanly for repeat demonstrations of both modules.
 
+**Status: Complete (2026-08-29), manually verified by requester (2026-08-29)**
+
+- `backend/app/scripts/reset_db.py` - extended to report `master_applicants`
+  (with active/inactive split) and `audit_records` counts in its summary
+  output. The underlying reset already covered both tables (Phase 1's
+  `create_db_and_tables()` seeds `master_applicants`, and `reset_db.py`
+  already called that) - this phase's gap was the script not *reporting* on
+  it, not the reset itself being incomplete. Docstring updated to state it
+  now resets both modules (Upload + Authorized Signatory) in one command.
+- `myplan/demo_data_reset_guide.md` - updated the `reset-db` section to
+  describe the corrected behaviour (now mentions `master_applicants` and
+  `audit_records` alongside `programmes`/`master_students`/
+  `upload_batches`/`upload_students`). This is operational documentation
+  about what the script does, not phase-progress documentation, so it was
+  kept accurate rather than left describing stale behaviour - the phase
+  execution log (`developmentplan_ASexecution.md`, this file) was otherwise
+  left untouched until now, per the requester's standing instruction.
+- Visual consistency pass across every Authorized Signatory page (First
+  Page, View Details, View Audits, Add Signatory steps 1/2) against the
+  Upload module's own pages (Upload Summary, Upload Path Selection) - no
+  spacing/alignment drift found. Expected: the module was built from
+  `PageShell`/`PageFooter`/`buttonStyles` and the same Tailwind spacing
+  rhythm from Phase 3 onward, so consistency was structural rather than
+  something needing reconciliation now.
+- Confirmed no stray NMC branding (only legitimate field labels like "NMC
+  PIN"/"NMC Programme", an established convention already used throughout
+  the Upload module), no header/footer links, and the AEI/Name/PIN filters
+  plus "Search Signatories" button remain genuinely non-functional -
+  verified at the source level (no bound state, no `onChange`/`onClick`
+  handlers), not just visually.
+
+**Troubleshooting / findings (with evidence):** none requiring a code fix -
+this phase was reporting/documentation plus a verification pass, not new
+functional code. The one thing worth recording: proved the reset script is
+genuinely destructive-and-correct, not just idempotent-and-silent, by
+deliberately tampering a live row's `nmc_practicetype1` and inserting a fake
+`audit_records` row, then running `reset_db` again and confirming both were
+wiped back to the correct seeded state (not left stale because the table
+already had rows).
+
+**Verification performed:**
+- `cd backend && uv run pytest` - **101/101 pass**. `cd frontend && npm run
+  lint` - clean; `npm test` - **92/92 pass**; `npm run build` - clean.
+- Ran `reset_db.py` clean, then independently verified via `sqlite3` (not
+  just the script's own printed summary): `master_applicants` 24 (16 active
+  / 8 inactive), `audit_records` 0, `upload_batches` 0, `upload_students` 0.
+  Confirmed the reset DB powers the live API correctly for both modules
+  (`GET /api/signatories` 16/8, `GET /api/institutes` still lists both
+  institutes) before leaving the dev database in this clean, demo-ready
+  state.
+- **Manual test: complete (2026-08-29)** - requester ran the Phase 6 section
+  of `manual_testing_guideAS.md` and confirmed all cases pass.
+
+**Deliverable state:** Phase 6 signed off. All six phases of the Authorized
+Signatory module (`developmentplan_AS.md`) are now complete and manually
+verified.
+
 ## Branching
 
 Per this repo's established workflow, branch fresh off `origin/main` before Phase 1

@@ -1,10 +1,13 @@
 """Rebuilds the demo SQLite database from scratch.
 
 Deletes the existing database file (if present), recreates the schema, and
-reseeds `programmes`/`master_students` from app/seed_data - the same thing
-that happens automatically on a fresh deploy with no database file yet.
-`upload_batches`/`upload_students` end up empty, since those are never
-seeded (only real uploads populate them).
+reseeds `programmes`/`master_students`/`master_applicants` from
+app/seed_data - the same thing that happens automatically on a fresh deploy
+with no database file yet. `upload_batches`/`upload_students` and
+`audit_records` end up empty, since none of those are ever seeded (only
+real uploads and real Add/Remove Course actions populate them) - covers
+both the Upload module and the Authorized Signatory module in one reset, so
+a demo of either (or both) starts from a known-clean baseline.
 
 Usage (from backend/):
     uv run python -m app.scripts.reset_db
@@ -13,7 +16,7 @@ Usage (from backend/):
 from sqlmodel import Session, select
 
 from app.db import DATABASE_URL, DEFAULT_DB_PATH, create_db_and_tables, engine
-from app.models import MasterStudent, Programme
+from app.models import AuditRecord, MasterApplicant, MasterStudent, Programme
 
 
 def main() -> None:
@@ -34,9 +37,17 @@ def main() -> None:
     with Session(engine) as session:
         programme_count = len(session.exec(select(Programme)).all())
         student_count = len(session.exec(select(MasterStudent)).all())
+        applicants = session.exec(select(MasterApplicant)).all()
+        active_count = sum(1 for a in applicants if a.nmc_active == "Yes")
+        inactive_count = len(applicants) - active_count
+        audit_count = len(session.exec(select(AuditRecord)).all())
 
     print(f"Recreated schema and reseeded {programme_count} programmes, {student_count} master students.")
-    print("upload_batches and upload_students start empty, same as any fresh deploy.")
+    print(f"Reseeded {len(applicants)} master applicants ({active_count} active / {inactive_count} inactive).")
+    print(
+        "upload_batches, upload_students, and audit_records start empty, same as any fresh "
+        f"deploy (audit_records: {audit_count})."
+    )
 
 
 if __name__ == "__main__":
