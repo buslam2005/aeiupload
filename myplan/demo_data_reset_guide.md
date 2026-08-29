@@ -18,15 +18,19 @@ uv run python -m app.scripts.reset_db
 
 What it does:
 1. Deletes `data/aei_upload.db` if it exists.
-2. Recreates the schema and reseeds `programmes` and `master_students` from
-   `app/seed_data/*.csv` - the same thing that happens automatically the
-   first time the app starts against a missing database file.
-3. `upload_batches`/`upload_students` end up empty, since nothing seeds
-   those - they only ever contain real uploads.
+2. Recreates the schema and reseeds `programmes`, `master_students`, and
+   `master_applicants` from `app/seed_data/*.csv` - the same thing that
+   happens automatically the first time the app starts against a missing
+   database file.
+3. `upload_batches`/`upload_students` (Upload module) and `audit_records`
+   (Authorized Signatory module) end up empty, since nothing seeds those -
+   they only ever contain real uploads or real Add/Remove Course actions.
 
-Use this when you want a completely clean slate: no upload history, and
-`programmes`/`master_students` back to exactly what's in the CSVs (in case
-you edited data mid-demo, or just want a known-good baseline).
+Use this when you want a completely clean slate for either module (or a
+demo of both together): no upload history, no audit history, and
+`programmes`/`master_students`/`master_applicants` back to exactly what's
+in the CSVs (in case you edited data mid-demo, or just want a known-good
+baseline).
 
 Prints a summary line with the row counts it reseeded, so you can confirm it
 worked.
