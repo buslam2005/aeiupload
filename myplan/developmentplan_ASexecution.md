@@ -295,14 +295,79 @@ was the CSV header-typo remap, confirmed by inspecting the raw header row of
 Logic).
 
 ### Phase 2 - Backend Logic
-- Extend `schemas.py` with request/response models for: signatory list, view
-  details, add course, remove course, add-signatory match, view audits, course
-  lookup choices.
-- New `routers/signatories.py` mounted under `/api`, covering all endpoints in
-  "Backend Logic Additions" above.
-- `services/` logic for slot selection, purge, and audit-row construction, kept
-  separate from the router same as `services/matching.py` is for uploads.
-- Pytest coverage as listed above.
+
+**Status: Complete (2026-08-29), manually verified by requester (2026-08-29)**
+
+- `backend/app/schemas.py` - added `CourseChoiceOut`, `SignatoryListItemOut`,
+  `CourseRowOut`, `SignatoryDetailOut`, `AddCourseRequest`, `MatchRequest`,
+  `AuditRecordOut`.
+- `backend/app/services/signatories.py` (new) - slot selection
+  (`first_empty_add_slot`, scans 2-5 only, per Assumption 2 Add Course never
+  touches slot 1), `add_course`/`remove_course` (field writes/purge +
+  `AuditRecord` construction, raising `ValueError` on capacity/sole-course
+  violations for the router to translate to 409), `match_applicant`
+  (active-only, exact PIN + surname match), `register_parts`/`practice_types`
+  (blank-filtering the 1-3 slots), `course_concat`.
+- `backend/app/services/programmes.py` - added `list_course_choices`
+  (institute-scoped, all qualification-level variants kept distinct - unlike
+  `list_programme_choices`) and `resolve_course_title` (institute + training
+  type + programme + academic route + **qualification level**).
+- `backend/app/routers/signatories.py` (new) - `GET /signatories`,
+  `GET /signatories/{pin}`, `GET /signatories/{pin}/audit`,
+  `POST /signatories/{pin}/courses`, `DELETE /signatories/{pin}/courses/{slot}`,
+  `POST /signatories/match`; mounted in `main.py` under `/api`.
+- `backend/app/routers/lookups.py` - added `GET /course-choices`, per the
+  plan's note to extend the existing lookups router rather than overload the
+  upload module's `ProgrammeChoiceOut`.
+- `backend/tests/conftest.py` - `client` fixture now also seeds
+  `master_applicants`, needed for the new API-level tests.
+- `backend/tests/test_as2_backend.py` - 24 new tests (API-level, via
+  `TestClient`): list counts/tags, view-details course rows + title
+  resolution, course-choices institute-scoping, add-course slot ordering,
+  capacity rejection (409), remove-course sole-course rejection (409), audit
+  content for both add and remove, and all three Add-Signatory match cases
+  (valid, inactive-PIN, surname-mismatch).
+
+**Troubleshooting / findings (with evidence):** the plan's course-title
+lookup assumption specified matching on "institute code + training type +
+programme + academic route" (3 dimensions, no qualification level). Proved
+this ambiguous before implementing it as written: institute 1315's own seed
+data (`AEI_programmes.csv`) has pairs sharing all three of those (e.g.
+`SC1`/`B Nurs (Hons)`, `AN1`/`B Nurs (Hons)`) that differ only by
+qualification level, each with a different `nmc_aeiprogrammetitle`
+("BN (Hons) Children's Nursing" vs "...Apprenticeship"). Matching on only 3
+dimensions would have made `resolve_course_title` pick whichever row loaded
+first, silently returning the wrong title depending on CSV row order.
+**Root cause: the plan's shorthand omitted qualification level, which the
+data itself requires to disambiguate.** Fixed by including qualification
+level in the join and added a dedicated test
+(`test_view_details_disambiguates_title_by_qualification_level`) proving both
+variants resolve to their correct, distinct titles.
+
+**Verification performed:**
+- `backend/tests/test_as2_backend.py` (24 new tests) + the full existing
+  suite: **99/99 pass** (24 new + 75 pre-existing Upload-module and Phase 1
+  AS tests unchanged - confirms this phase touched nothing
+  `programmes`/`master_students`/upload-related).
+- Live-server pass: fresh `uv run uvicorn app.main:app --port 8009` against a
+  deleted `data/` directory, working through
+  `manual_testing_guideAS.md`'s Phase 2 curl sequence verbatim (steps 2-9):
+  signatories list (16/8), view details for `26H0401Z` (1 course row,
+  resolved title), course-choices for institute 1315 (8 entries), add course
+  (`RSC1` audit new-value), fill slots 2-5 then confirm the 6th add is
+  rejected with 409 (not silently ignored or overwriting a slot), sole-course
+  removal rejected with 409, a real removal purging the slot and writing
+  `RSC1 -> ''` to the audit trail, and all three Add Signatory match
+  outcomes (match / inactive-PIN no-match / surname-mismatch no-match) -
+  every response matched the guide's expected values exactly. Restarted the
+  server against the existing DB file (no delete) and confirmed the 4
+  courses from the curl session persisted (no re-seed), matching Phase 1's
+  idempotent-seeding behaviour.
+- **Manual test: complete (2026-08-29)** - requester ran the Phase 2 section
+  of `manual_testing_guideAS.md` and confirmed all cases pass.
+
+**Deliverable state:** Phase 2 signed off. Ready to proceed to Phase 3 (UI
+Development).
 
 ### Phase 3 - UI Development
 Build each page from `UI_requirements.md`'s Authorized Signatories section and its

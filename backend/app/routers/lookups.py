@@ -2,8 +2,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
 from app.db import get_session
-from app.schemas import InstituteOut, ProgrammeChoiceOut, ProgrammeTitleChoiceOut
-from app.services.programmes import list_institutes, list_programme_choices, list_programme_titles
+from app.schemas import CourseChoiceOut, InstituteOut, ProgrammeChoiceOut, ProgrammeTitleChoiceOut
+from app.services.programmes import (
+    list_course_choices,
+    list_institutes,
+    list_programme_choices,
+    list_programme_titles,
+)
 
 router = APIRouter()
 
@@ -43,6 +48,25 @@ def get_programme_titles(
             nmc_academicroute=p.nmc_academicroute,
             nmc_qualificationlevel=p.nmc_qualificationlevel,
             nmc_aeiprogrammetitle=p.nmc_aeiprogrammetitle,
+        )
+        for p in choices
+    ]
+
+
+@router.get("/course-choices", response_model=list[CourseChoiceOut])
+def get_course_choices(
+    institute_code: str = Query(...),
+    session: Session = Depends(get_session),
+):
+    choices = list_course_choices(session, institute_code)
+    return [
+        CourseChoiceOut(
+            nmc_programmename=p.nmc_programmename,
+            nmc_trainingtype=p.nmc_trainingtype,
+            nmc_programme=p.nmc_programme,
+            nmc_academicroute=p.nmc_academicroute,
+            nmc_qualificationlevel=p.nmc_qualificationlevel,
+            nmc_qualificationlevelname=p.nmc_qualificationlevelname,
         )
         for p in choices
     ]

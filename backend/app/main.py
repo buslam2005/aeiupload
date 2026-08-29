@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from starlette.staticfiles import StaticFiles
 
 from app.db import create_db_and_tables
-from app.routers import lookups, uploads
+from app.routers import lookups, signatories, uploads
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "out"
@@ -29,6 +29,7 @@ def health() -> dict[str, str]:
 
 app.include_router(lookups.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
+app.include_router(signatories.router, prefix="/api")
 
 
 app.mount(
