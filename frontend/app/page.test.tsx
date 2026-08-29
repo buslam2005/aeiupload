@@ -11,9 +11,16 @@ describe("LandingPage", () => {
     );
   });
 
-  it("renders the other tiles without a destination", () => {
+  it("links the 'Manage approved signatories' tile to the Authorised Signatories module", () => {
     render(<LandingPage />);
-    expect(screen.getByText("Manage approved signatories").closest("a")).toBeNull();
+    expect(screen.getByRole("link", { name: /Manage approved signatories/ })).toHaveAttribute(
+      "href",
+      "/authorised-signatories"
+    );
+  });
+
+  it("renders the remaining tiles without a destination", () => {
+    render(<LandingPage />);
     expect(screen.getByText("DGHC Requests").closest("a")).toBeNull();
   });
 });
