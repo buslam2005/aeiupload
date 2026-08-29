@@ -19,7 +19,7 @@ function choiceKey(choice: CourseChoice): string {
 interface Props {
   open: boolean;
   choices: CourseChoice[];
-  onAdd: (choice: CourseChoice) => void;
+  onAdd: (choice: CourseChoice) => Promise<void>;
   onClose: () => void;
 }
 
@@ -33,15 +33,26 @@ export default function CourseLookupModal({ open, choices, onAdd, onClose }: Pro
 function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open">) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(choices.length / PAGE_SIZE));
   const pageChoices = choices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function handleAdd() {
+  async function handleAdd() {
     const choice = choices.find((c) => choiceKey(c) === selectedKey);
     if (!choice) return;
-    onAdd(choice);
-    onClose();
+    setSubmitting(true);
+    try {
+      await onAdd(choice);
+      onClose();
+    } catch (err) {
+      // e.g. "The selected course was already attained." (409, duplicate
+      // course) or a capacity rejection - backend/app/services/signatories.py.
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -137,7 +148,12 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
             ))}
           </div>
           <div className="flex gap-3">
-            <button type="button" className={primaryButtonClass} disabled={!selectedKey} onClick={handleAdd}>
+            <button
+              type="button"
+              className={primaryButtonClass}
+              disabled={!selectedKey || submitting}
+              onClick={handleAdd}
+            >
               Add
             </button>
             <button
@@ -149,6 +165,7 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
             </button>
           </div>
         </div>
+        {error && <p className="mt-2 text-sm text-brand-error">{error}</p>}
       </div>
     </div>
   );

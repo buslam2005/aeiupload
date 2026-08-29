@@ -7,16 +7,23 @@ import SignatoryStaticFields from "../../../components/SignatoryStaticFields";
 import CourseSubgrid from "../../../components/CourseSubgrid";
 import CourseLookupModal from "../../../components/CourseLookupModal";
 import { disabledButtonClass, primaryButtonClass } from "../../../components/buttonStyles";
-import { MOCK_COURSE_CHOICES, MOCK_SIGNATORY_DETAILS, courseFromChoice, firstEmptyAddSlot } from "../../mockData";
-import type { CourseChoice, SignatoryDetail } from "../../../lib/types";
+import { useSignatoryDetail } from "../../useSignatoryDetail";
 
 function AddSignatoryDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pin = searchParams.get("pin") ?? "";
 
-  const [detail, setDetail] = useState<SignatoryDetail | null>(() => MOCK_SIGNATORY_DETAILS[pin] ?? null);
+  const { detail, choices, addCourse } = useSignatoryDetail(pin);
   const [modalOpen, setModalOpen] = useState(false);
+
+  if (detail === undefined) {
+    return (
+      <PageShell>
+        <p>Loading...</p>
+      </PageShell>
+    );
+  }
 
   if (!detail) {
     return (
@@ -24,15 +31,6 @@ function AddSignatoryDetailContent() {
         <p>Signatory not found.</p>
       </PageShell>
     );
-  }
-
-  function handleAddCourse(choice: CourseChoice) {
-    setDetail((prev) => {
-      if (!prev) return prev;
-      const slot = firstEmptyAddSlot(prev.courses);
-      if (slot === null) return prev;
-      return { ...prev, courses: [...prev.courses, courseFromChoice(slot, prev.nmc_institutename, choice)] };
-    });
   }
 
   const atCapacity = detail.courses.length >= 5;
@@ -66,12 +64,7 @@ function AddSignatoryDetailContent() {
         </button>
       </div>
 
-      <CourseLookupModal
-        open={modalOpen}
-        choices={MOCK_COURSE_CHOICES}
-        onAdd={handleAddCourse}
-        onClose={() => setModalOpen(false)}
-      />
+      <CourseLookupModal open={modalOpen} choices={choices} onAdd={addCourse} onClose={() => setModalOpen(false)} />
     </PageShell>
   );
 }

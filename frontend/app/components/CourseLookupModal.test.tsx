@@ -49,7 +49,7 @@ describe("CourseLookupModal", () => {
   });
 
   it("calls onAdd with the checked choice and closes", async () => {
-    const onAdd = vi.fn();
+    const onAdd = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<CourseLookupModal open choices={CHOICES} onAdd={onAdd} onClose={onClose} />);
@@ -59,6 +59,21 @@ describe("CourseLookupModal", () => {
 
     expect(onAdd).toHaveBeenCalledWith(CHOICES[1]);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows the backend's error message underneath the pagination and stays open when onAdd rejects", async () => {
+    const onAdd = vi.fn().mockRejectedValue(new Error("The selected course was already attained."));
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<CourseLookupModal open choices={CHOICES} onAdd={onAdd} onClose={onClose} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /Pre-registration nursing - Child/ }));
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("The selected course was already attained.")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    // Modal stays open with the same choice still selectable/checked.
+    expect(screen.getByRole("checkbox", { name: /Pre-registration nursing - Child/ })).toBeChecked();
   });
 
   it("Cancel closes without adding", async () => {

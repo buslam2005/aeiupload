@@ -1,15 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PageShell from "../components/PageShell";
 import { primaryButtonClass } from "../components/buttonStyles";
 import { signatoryNameLabel } from "../lib/format";
-import { MOCK_SIGNATORIES } from "./mockData";
-
-// Phase 3: mock data only - see mockData.ts. Phase 4 swaps MOCK_SIGNATORIES
-// for a real GET /api/signatories?active=... fetch without changing any
-// field names (lib/types.ts already mirrors the backend schema).
+import { getSignatories } from "../lib/api";
+import type { SignatoryListItem } from "../lib/types";
 
 type Toggle = "Active" | "Inactive";
 
@@ -27,22 +24,66 @@ function LinesList({ values }: { values: string[] }) {
   );
 }
 
+const MENU_WIDTH = 160; // matches w-40 below
+
 function RowActions({ pin, active }: { pin: string; active: boolean }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // The subgrid now scrolls (see "at most 10 rows" above) - an
+  // absolutely-positioned menu would be clipped by that scroll container for
+  // rows near the bottom, so this is fixed-positioned from the trigger's
+  // viewport rect instead, which escapes the clip. Closes on the page's own
+  // scroll/resize rather than re-tracking the trigger, since this is a
+  // one-shot open, not a persistently-anchored popover.
+  //
+  // Listener attachment is deferred one tick: opening the menu for a row
+  // that wasn't fully in view (e.g. reached via keyboard, or a click that
+  // itself triggers the browser's scroll-into-view) causes a real window
+  // scroll that lands in the same tick as the click - attaching immediately
+  // caught that same scroll and closed the menu before it was ever visible.
+  useEffect(() => {
+    if (!open) return;
+    function close() {
+      setOpen(false);
+    }
+    const id = window.setTimeout(() => {
+      window.addEventListener("scroll", close);
+      window.addEventListener("resize", close);
+    }, 0);
+    return () => {
+      window.clearTimeout(id);
+      window.removeEventListener("scroll", close);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  function toggleOpen() {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, left: rect.right - MENU_WIDTH });
+    }
+    setOpen((o) => !o);
+  }
 
   return (
     <div className="relative inline-block text-left">
       <button
+        ref={buttonRef}
         type="button"
         aria-label={`Actions for ${pin}`}
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className="flex h-8 w-8 items-center justify-center rounded border border-brand-border hover:bg-brand-disabled-bg"
       >
         ▾
       </button>
-      {open && (
-        <div className="absolute right-0 z-10 mt-1 w-40 rounded border border-brand-border bg-white py-1 shadow-lg">
+      {open && menuPos && (
+        <div
+          style={{ position: "fixed", top: menuPos.top, left: menuPos.left, width: MENU_WIDTH }}
+          className="z-10 rounded border border-brand-border bg-white py-1 shadow-lg"
+        >
           <Link
             href={`/authorised-signatories/view-details?pin=${encodeURIComponent(pin)}`}
             className="block px-3 py-2 text-sm text-brand-accent hover:bg-brand-disabled-bg"
@@ -75,7 +116,25 @@ function RowActions({ pin, active }: { pin: string; active: boolean }) {
 
 export default function AuthorisedSignatoriesPage() {
   const [toggle, setToggle] = useState<Toggle>("Active");
-  const rows = MOCK_SIGNATORIES.filter((s) => s.nmc_active === (toggle === "Active" ? "Yes" : "No"));
+  const [rows, setRows] = useState<SignatoryListItem[]>([]);
+
+  useEffect(() => {
+    function load() {
+      getSignatories(toggle === "Active" ? "Yes" : "No").then(setRows);
+    }
+
+    load();
+
+    // See upload-summary/page.tsx - browsers can restore this page from the
+    // back/forward cache (bfcache) without re-running the fetch above, which
+    // would otherwise show a stale "Approved course title" after a course
+    // add/remove on View Details.
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) load();
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [toggle]);
 
   return (
     <PageShell>
@@ -127,9 +186,11 @@ export default function AuthorisedSignatoriesPage() {
         </Link>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* At most 10 rows visible, infinite vertical scroll beyond that - same
+          convention as ErrorRecordsSubgrid.tsx's scrollable subgrid. */}
+      <div className="max-h-[720px] overflow-y-auto overflow-x-auto rounded border border-brand-border">
         <table className="w-full min-w-[1000px] border-collapse text-sm">
-          <thead>
+          <thead className="sticky top-0 bg-white">
             <tr className="border-b border-brand-border text-left">
               <th className="py-2 pr-4">Name</th>
               <th className="py-2 pr-4">Approved course title</th>

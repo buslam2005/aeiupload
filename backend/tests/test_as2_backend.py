@@ -42,7 +42,9 @@ def test_list_signatory_approved_course_title_and_tags(client):
     row = next(r for r in resp.json() if r["nmc_pin"] == "26H0401Z")
     assert row["approved_course_title"] == "RAN1"
     assert row["register_parts"] == ["Nursing", "Nursing", "Nursing"]
-    assert row["practice_types"] == []
+    # nmc_practicetype1 was populated (2026-08-29 data update) - mirrors
+    # nmc_registerpart1 in the seed data; practicetype2/3 are still blank.
+    assert row["practice_types"] == ["Nursing"]
 
 
 # --- View Details ---------------------------------------------------------
@@ -152,6 +154,25 @@ def test_add_course_rejected_when_all_5_slots_full(client):
 
     body = client.get("/api/signatories/26H0401Z").json()
     assert len(body["courses"]) == 5
+
+
+def test_add_course_rejected_when_identical_to_an_existing_course(client):
+    # 26H0401Z's course 1 is R/AN1/B Nurs (Hons)/F - attempting to add that
+    # exact combo again must be rejected, distinctly from the capacity error.
+    resp = add_course(client, "26H0401Z", "R", "AN1", "B Nurs (Hons)", "F")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "The selected course was already attained."
+
+    body = client.get("/api/signatories/26H0401Z").json()
+    assert len(body["courses"]) == 1
+
+
+def test_add_course_duplicate_check_covers_every_populated_slot_not_just_course_1(client):
+    add_course(client, "26H0401Z", "R", "SC1", "B Nurs (Hons)", "F")  # now course 2
+
+    resp = add_course(client, "26H0401Z", "R", "SC1", "B Nurs (Hons)", "F")
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "The selected course was already attained."
 
 
 def test_add_course_unknown_pin_404(client):

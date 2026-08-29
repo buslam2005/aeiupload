@@ -16,9 +16,12 @@ interface Props {
 
 export default function CourseSubgrid({ courses, onRemove }: Props) {
   return (
-    <div className="overflow-x-auto">
+    // At most 5 rows visible, infinite vertical scroll beyond that (in
+    // practice the 5-slot cap means this rarely triggers, but it's here for
+    // when it does).
+    <div className="max-h-64 overflow-y-auto overflow-x-auto rounded border border-brand-border">
       <table className="w-full min-w-[800px] border-collapse text-sm">
-        <thead>
+        <thead className="sticky top-0 bg-white">
           <tr className="border-b border-brand-border text-left">
             <th className="py-2 pr-4">Education Institution</th>
             <th className="py-2 pr-4">AEI Programme Title</th>

@@ -5,11 +5,15 @@
 // architecture) - no base URL configuration needed.
 
 import type {
+  AuditRecordEntry,
   BatchDetail,
   BatchSummary,
+  CourseChoice,
   Institute,
   ProgrammeChoice,
   ProgrammeTitleChoice,
+  SignatoryDetail,
+  SignatoryListItem,
   UploadStudent,
 } from "./types";
 
@@ -171,4 +175,37 @@ export function toResubmitFullPayload(row: UploadStudent): ResubmitFullPayload {
 
 export function deleteUploadStudent(id: number): Promise<void> {
   return apiFetch(`/upload-students/${id}`, { method: "DELETE" });
+}
+
+// --- Authorized Signatory (mirrors backend/app/routers/{lookups,signatories}.py) ---
+
+export function getSignatories(active: "Yes" | "No"): Promise<SignatoryListItem[]> {
+  return apiFetch(`/signatories?active=${encodeURIComponent(active)}`);
+}
+
+export function getSignatory(pin: string): Promise<SignatoryDetail> {
+  return apiFetch(`/signatories/${encodeURIComponent(pin)}`);
+}
+
+export function getSignatoryAudit(pin: string): Promise<AuditRecordEntry[]> {
+  return apiFetch(`/signatories/${encodeURIComponent(pin)}/audit`);
+}
+
+export function getCourseChoices(instituteCode: string): Promise<CourseChoice[]> {
+  return apiFetch(`/course-choices?institute_code=${encodeURIComponent(instituteCode)}`);
+}
+
+export function addCourse(
+  pin: string,
+  choice: Pick<CourseChoice, "nmc_trainingtype" | "nmc_programme" | "nmc_academicroute" | "nmc_qualificationlevel">
+): Promise<SignatoryDetail> {
+  return apiFetch(`/signatories/${encodeURIComponent(pin)}/courses`, jsonInit("POST", choice));
+}
+
+export function removeCourse(pin: string, slot: number): Promise<SignatoryDetail> {
+  return apiFetch(`/signatories/${encodeURIComponent(pin)}/courses/${slot}`, { method: "DELETE" });
+}
+
+export function matchSignatory(pin: string, lastname: string): Promise<SignatoryDetail> {
+  return apiFetch("/signatories/match", jsonInit("POST", { nmc_pin: pin, nmc_lastname: lastname }));
 }

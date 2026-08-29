@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageShell from "../../components/PageShell";
 import { primaryButtonClass } from "../../components/buttonStyles";
 import { SearchIcon } from "../../components/icons";
 import { toBritishDateTime } from "../../lib/format";
-import { MOCK_AUDITS } from "../mockData";
+import { getSignatoryAudit } from "../../lib/api";
+import type { AuditRecordEntry } from "../../lib/types";
 
 const PAGE_SIZE = 5;
 
@@ -15,8 +16,12 @@ function ViewAuditsContent() {
   const searchParams = useSearchParams();
   const pin = searchParams.get("pin") ?? "";
   const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<AuditRecordEntry[]>([]);
 
-  const rows = [...(MOCK_AUDITS[pin] ?? [])].sort((a, b) => b.nmc_modifiedon.localeCompare(a.nmc_modifiedon));
+  useEffect(() => {
+    getSignatoryAudit(pin).then(setRows);
+  }, [pin]);
+
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
