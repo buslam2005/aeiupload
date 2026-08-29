@@ -1,4 +1,4 @@
-import type { ProgrammeChoice, ProgrammeTitleChoice, UploadStudent } from "./types";
+import type { ProgrammeChoice, ProgrammeTitleChoice, SignatoryListItem, UploadStudent } from "./types";
 
 export function instituteLabel(institute: { name: string; code: string }): string {
   return `${institute.name} - ${institute.code}`;
@@ -132,4 +132,10 @@ export function getFieldError(row: UploadStudent, fieldLabel: string): string | 
 
 export function allErrorMessages(row: UploadStudent): string[] {
   return ERROR_FIELDS.map((f) => row[f]).filter((v): v is string => Boolean(v));
+}
+
+/** "Name (concatenate nmc_firstname, nmc_lastname with a space)" -
+ * AuthorisedSignatoriesFirstPage.png's subgrid mapping. */
+export function signatoryNameLabel(row: Pick<SignatoryListItem, "nmc_firstname" | "nmc_lastname">): string {
+  return `${row.nmc_firstname} ${row.nmc_lastname}`;
 }

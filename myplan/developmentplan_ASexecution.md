@@ -399,6 +399,97 @@ spacing/colour conventions.
   Signatory step 2.
 - Landing page tile wiring.
 
+**Status: Complete (2026-08-29), manually verified by requester (2026-08-29)**
+
+- `frontend/app/lib/types.ts` - added `CourseChoice`, `SignatoryListItem`,
+  `CourseRow`, `SignatoryDetail`, `AuditRecordEntry`, mirroring
+  `backend/app/schemas.py` exactly (same convention as the Upload module's
+  types.ts) so Phase 4 can swap mock data for real `fetch()` calls without
+  renaming any field.
+- `frontend/app/authorised-signatories/mockData.ts` (new) - Phase 3 fixtures
+  shaped like the real Phase 2 responses: `MOCK_COURSE_CHOICES` (institute
+  1315's real 8-combo catalogue, copied verbatim from the seed CSV),
+  `MOCK_SIGNATORY_DETAILS`/`MOCK_SIGNATORIES` (8 self-authored signatories,
+  active and inactive, including a "Sai P" fixture matching the View Details
+  diagram's 3-tag Register Part / 1-tag Practice Type example, and two
+  intentionally-unresolvable course combos to prove the UI's null-title
+  fallback), `MOCK_AUDITS` (one PIN with 7 rows to exercise real
+  pagination), plus pure helper functions mirroring the backend services
+  (`firstEmptyAddSlot`, `courseFromChoice`, `resolveCourseTitle`,
+  `matchSignatory`) so the mock add/remove/match logic matches
+  `backend/app/services/signatories.py`'s behaviour exactly.
+- New routes: `authorised-signatories/page.tsx` (First Page - toggle,
+  filters, subgrid, per-row actions dropdown), `.../view-details/page.tsx`,
+  `.../view-audits/page.tsx` (paginated), `.../add-signatory/page.tsx` (step
+  1 - PIN+Surname match) and `.../add-signatory/detail/page.tsx` (step 2 -
+  add-only).
+- New shared components: `TagList.tsx` (chip display), `CourseSubgrid.tsx`
+  (Remove omitted entirely when not passed an `onRemove`, so Add Signatory
+  step 2 is structurally add-only rather than relying on a disabled button),
+  `SignatoryStaticFields.tsx` (the field block shared by View Details and Add
+  Signatory step 2), `CourseLookupModal.tsx` (single-select, working numbered
+  pagination at 5 rows/page).
+- `frontend/app/lib/format.ts` - added `signatoryNameLabel`.
+- `frontend/app/page.tsx` - "Manage approved signatories" tile now links to
+  `/authorised-signatories`; `page.test.tsx` updated to match.
+- Tests: `authorised-signatories/page.test.tsx`,
+  `view-details/page.test.tsx`, `view-audits/page.test.tsx`,
+  `add-signatory/page.test.tsx`, `add-signatory/detail/page.test.tsx`,
+  `components/CourseLookupModal.test.tsx` - 88 tests total across the
+  frontend suite (17 files).
+
+**Troubleshooting / findings (with evidence):**
+- **No "Edit Course" action.** `UI_requirements.md`'s course subgrid lists a
+  "link to Edit Course page" alongside "link to delete the course record",
+  and the dev plan's own Phase 3 bullet echoes "per-row Edit-link". Checked
+  the backend before building this: Phase 2 only exposes add-to-next-slot
+  and remove-a-slot endpoints - there is no edit-in-place endpoint, and the
+  diagrams themselves only show a generic chevron per row, never two
+  distinct actions. Built `CourseSubgrid.tsx` with only a Remove action
+  (commented with this reasoning in the component) rather than adding a
+  dead "Edit" link with nothing behind it.
+- **ESLint `react-hooks/set-state-in-effect` on `CourseLookupModal`.** First
+  draft reset the pop-up's selection/page state in a `useEffect` keyed on the
+  `open` prop, so reopening it wouldn't show a stale selection. Root cause:
+  using an effect to reset state the component's own mount lifecycle already
+  resets for free. Fixed by splitting the modal so its stateful content only
+  mounts while `open` is true (`if (!open) return null` before the stateful
+  child renders) - state now initializes fresh on every open with no effect
+  needed.
+- **`page.test.tsx`'s `push` mock leaking between tests.** Two new
+  `AddSignatoryPage` tests failed because an earlier test's successful
+  `router.push` call was still recorded when a later test asserted
+  `push` was never called. Root cause: the mock `vi.fn()` wasn't cleared
+  between tests (missing `afterEach(() => vi.clearAllMocks())`, present in
+  other test files but omitted here initially) - added it, both tests pass.
+
+**Verification performed:**
+- `cd frontend && npm run lint` - clean.
+- `npm test` - **88/88 pass** (17 test files, 0 regressions in the
+  pre-existing Upload-module frontend tests).
+- `npm run build` - static export succeeds; all 5 new routes prerendered
+  (`/authorised-signatories`, `.../view-details`, `.../view-audits`,
+  `.../add-signatory`, `.../add-signatory/detail`), TypeScript clean.
+- `cd backend && uv run pytest` - **99/99 pass**, confirming this
+  frontend-only phase touched nothing backend-side.
+- Live browser walkthrough (Playwright, against the built static export
+  served by the real backend) of every diagram: First Page data + row
+  actions dropdown, Active/Inactive toggle re-rendering in place, View
+  Details (tag chips matching the "Sai P" reference, course subgrid,
+  Add Courses -> Course Lookup pop-up -> row appended with the correctly
+  resolved AEI Programme Title), Course Lookup pop-up (single-select,
+  working 2-page pagination for the 8 institute-1315 combos), View Audits
+  (pagination, genuinely distinct Old/New values, newest first), Add
+  Signatory mismatch (inactive PIN + correct surname correctly rejected)
+  and success path (navigates to the add-only detail page with inherited
+  fields, no Remove control anywhere), and Inactive Signatories toggle -
+  every page matched its diagram.
+- **Manual test: complete (2026-08-29)** - requester ran the Phase 3 section
+  of `manual_testing_guideAS.md` and confirmed all cases pass.
+
+**Deliverable state:** Phase 3 signed off. Ready to proceed to Phase 4
+(Integration).
+
 ### Phase 4 - Integration
 - Wire every page to its backend endpoint via the typed API client.
 - Full navigation: Landing Page tile -> First Page -> (View Details -> Add/Remove

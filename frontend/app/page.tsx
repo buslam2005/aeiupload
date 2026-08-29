@@ -2,11 +2,12 @@ import Link from "next/link";
 import PageShell from "./components/PageShell";
 import { ArrowRightIcon } from "./components/icons";
 
-// AEIportallandingpage.png - only the "Upload student records" tile has a
-// destination; the rest are non-functional placeholders for this prototype.
+// AEIportallandingpage.png - only "Upload student records" and "Manage
+// approved signatories" have destinations; the rest are non-functional
+// placeholders for this prototype.
 const TILES: { label: string; href?: string }[] = [
   { label: "Upload student records", href: "/select-institute" },
-  { label: "Manage approved signatories" },
+  { label: "Manage approved signatories", href: "/authorised-signatories" },
   { label: "Request PINs" },
   { label: "Manage OSCE results" },
   { label: "Manage your team" },

@@ -90,3 +90,64 @@ export interface BatchDetail extends BatchSummary {
   uploaded_records: UploadStudent[];
   error_records: UploadStudent[];
 }
+
+// --- Authorized Signatory (mirrors backend/app/schemas.py's signatory types) ---
+
+export interface CourseChoice {
+  nmc_programmename: string;
+  nmc_trainingtype: string;
+  nmc_programme: string;
+  nmc_academicroute: string;
+  nmc_qualificationlevel: string;
+  nmc_qualificationlevelname: string;
+}
+
+export interface SignatoryListItem {
+  nmc_pin: string;
+  nmc_lastname: string;
+  nmc_firstname: string;
+  approved_course_title: string;
+  register_parts: string[];
+  practice_types: string[];
+  nmc_regexpirydate: string;
+  nmc_createdon: string;
+  nmc_addedby: string;
+  nmc_active: "Yes" | "No";
+}
+
+export interface CourseRow {
+  slot: number;
+  nmc_trainingtypecode: string;
+  nmc_programmecode: string;
+  nmc_academiclevel: string;
+  nmc_qualificationroute: string;
+  nmc_institutename: string;
+  nmc_aeiprogrammetitle: string | null;
+}
+
+export interface SignatoryDetail {
+  nmc_pin: string;
+  nmc_lastname: string;
+  nmc_firstname: string;
+  nmc_regexpirydate: string;
+  nmc_addedby: string;
+  nmc_createdon: string;
+  nmc_institutecode: string;
+  nmc_institutename: string;
+  nmc_active: "Yes" | "No";
+  register_parts: string[];
+  practice_types: string[];
+  courses: CourseRow[];
+}
+
+export interface AuditRecordEntry {
+  id: number;
+  nmc_pin: string;
+  nmc_lastname: string;
+  nmc_firstname: string;
+  nmc_modifiedon: string;
+  nmc_attributechanged: string;
+  nmc_previousvalue: string | null;
+  nmc_newvalue: string | null;
+  nmc_addedby: string;
+}
