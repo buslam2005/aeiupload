@@ -38,6 +38,27 @@ def practice_types(applicant: MasterApplicant) -> list[str]:
     return [v for v in (applicant.nmc_practicetype1, applicant.nmc_practicetype2, applicant.nmc_practicetype3) if v]
 
 
+def course_already_attained(
+    applicant: MasterApplicant,
+    trainingtype: str,
+    programme: str,
+    academicroute: str,
+    qualificationlevel: str,
+) -> bool:
+    """True if the given combo already occupies one of the applicant's
+    populated course slots (1-5) - training type, programme, academic level,
+    and qualification route all matching."""
+    for slot in populated_slots(applicant):
+        if (
+            getattr(applicant, f"nmc_course{slot}trainingtypecode") == trainingtype
+            and getattr(applicant, f"nmc_course{slot}programmecode") == programme
+            and getattr(applicant, f"nmc_course{slot}academiclevel") == academicroute
+            and getattr(applicant, f"nmc_course{slot}qualificationroute") == qualificationlevel
+        ):
+            return True
+    return False
+
+
 def add_course(
     session: Session,
     applicant: MasterApplicant,
@@ -47,8 +68,12 @@ def add_course(
     qualificationlevel: str,
 ) -> int:
     """Write the chosen combo into the first empty slot (2-5) and append an
-    audit row. Returns the slot number. Raises ValueError if all 5 slots are
-    already populated."""
+    audit row. Returns the slot number. Raises ValueError if the combo is
+    already one of the applicant's courses, or if all 5 slots are already
+    populated."""
+    if course_already_attained(applicant, trainingtype, programme, academicroute, qualificationlevel):
+        raise ValueError("The selected course was already attained.")
+
     slot = first_empty_add_slot(applicant)
     if slot is None:
         raise ValueError("All 5 course slots are already populated")

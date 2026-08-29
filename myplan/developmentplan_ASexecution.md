@@ -500,6 +500,139 @@ spacing/colour conventions.
   navigation, and that a course add/remove immediately reflects in the First Page
   subgrid's "Approved course title" cell on return.
 
+**Status: Complete (2026-08-29), manually verified by requester (2026-08-29)**
+
+- `frontend/app/lib/api.ts` - added `getSignatories`, `getSignatory`,
+  `getSignatoryAudit`, `getCourseChoices`, `addCourse`, `removeCourse`,
+  `matchSignatory`, mirroring `backend/app/routers/{lookups,signatories}.py`
+  exactly.
+- `frontend/app/authorised-signatories/useSignatoryDetail.ts` (new) - shared
+  hook (fetch detail + institute-scoped course choices, add/remove course)
+  used by both View Details and Add Signatory step 2, replacing the
+  duplicated mock-state logic each page had in Phase 3.
+- All 5 pages rewired from Phase 3's mock data to real `fetch()` calls: First
+  Page (toggle re-fetches; also picked up a `pageshow`/bfcache guard, same
+  fix the Upload module's `upload-summary` page already needed, so returning
+  from View Details after a course change never shows a stale row), View
+  Details, View Audits (now trusts the backend's own newest-first sort
+  instead of re-sorting client-side), Add Signatory step 1 (real match,
+  catches the 404 as the mismatch case), step 2.
+- Deleted `mockData.ts` (fully superseded, no dead code left behind - matches
+  the Upload module's own precedent of not keeping a mock file around after
+  wiring).
+- All 6 Phase 3 test files rewritten to mock `lib/api` instead of importing
+  mock data directly (same convention as `upload-summary/page.test.tsx`),
+  including two stateful mocks that simulate server-assigned slot numbers
+  for add/remove.
+
+**Troubleshooting / findings (with evidence):** two `view-audits` tests used
+`findAllByRole("row")` / `getByRole("button", {name:"2"})` to wait for async
+data, but the table renders a row (or just page 1) synchronously before the
+fetch resolves - so these resolved against the stale pre-fetch render rather
+than waiting for real data. Root cause: `findAllByRole` only waits until *a*
+match exists, not until the expected count is reached. Fixed by waiting on a
+query that can only be true once real data has loaded (a specific audit
+row's cell content) before asserting row counts or clicking page 2.
+
+**Verification performed:**
+- `cd frontend && npm run lint` - clean. `npm test` - **89/89 pass** (17
+  files). `npm run build` - static export succeeds, all 5 routes
+  prerendered, TypeScript clean.
+- `cd backend && uv run pytest` - **99/99 pass**, confirming zero backend
+  regressions from a frontend-only phase.
+- Full live browser walkthrough (Playwright) of every step in
+  `manual_testing_guideAS.md`'s Phase 4 section against the real
+  single-port app with a freshly seeded DB: landing page tile -> First Page
+  (16 real active rows) -> Inactive toggle (8 rows, no navigation) -> View
+  Details for `26H0401Z` -> Course Lookup (real institute-1315 catalogue,
+  single-select proven) -> Add Course (title resolved correctly) -> Remove
+  Course (Remove hidden again at 1 course) -> View Audits (distinct
+  Old/New, newest first) -> Add a Signatory success path (course added
+  there is visible back in View Details) -> both mismatch paths (wrong
+  surname, inactive PIN) -> confirmed `/select-institute` still lists both
+  institutes. Every step matched the guide exactly.
+- **Manual test: complete (2026-08-29)** - requester ran the Phase 4 section
+  of `manual_testing_guideAS.md` and confirmed all cases pass, no bugs.
+
+**Deliverable state:** Phase 4 signed off. Ready to proceed to Phase 5
+(System Testing & Validation).
+
+#### Post-Phase-4 changes (requested 2026-08-29, after Phase 4 sign-off)
+
+Four changes requested by the requester once Phase 4 was manually confirmed
+bug-free, implemented and manually tested together with Phase 4:
+
+**a. Duplicate-course rejection.** New verification at Add Course time: if
+the chosen training type/programme/academic level/qualification route
+matches any of the applicant's existing populated course slots (1-5),
+reject with `"The selected course was already attained."`.
+- `backend/app/services/signatories.py` - new `course_already_attained()`
+  check inside `add_course`, raising `ValueError` (-> 409 via the router's
+  existing generic handler) before slot assignment.
+- `frontend/app/components/CourseLookupModal.tsx` - `onAdd` is now awaited;
+  on rejection the error renders underneath the pagination row and the
+  modal stays open with the selection intact, rather than closing.
+- 2 new backend tests, 1 new modal test.
+
+**b. First Page subgrid: scrollable, at most 10 rows.** Wrapped in a
+scroll container with a sticky header (same convention as
+`ErrorRecordsSubgrid.tsx`).
+- **Troubleshooting / finding (with evidence):** this introduced a real bug -
+  the row-actions dropdown, being `position:absolute` inside the new
+  scrollable ancestor, is clipped by CSS overflow rules for rows near the
+  bottom (confirmed by a live Playwright test: the dropdown's later items
+  were unreachable for a row 9-of-16 deep in the scroll window). Root cause:
+  `overflow:auto` clips *all* descendant content, including absolutely
+  positioned children, regardless of the trigger's own `position:relative`
+  wrapper. Fixed by switching the menu to `position:fixed`, computed from
+  the trigger's `getBoundingClientRect()`, which escapes the ancestor's
+  clip entirely; closes on real window scroll/resize.
+  - **Second finding:** the first fix attempt closed the menu instantly on
+    open for any row that needed scrolling into view first - proved via an
+    instrumented console listener that a genuine `window scroll` event
+    (from the click itself triggering scroll-into-view) landed in the same
+    tick as opening. Root cause: the scroll-close listener was attached
+    synchronously in the same effect that opened the menu, so it caught the
+    click's own scroll. Fixed by deferring listener attachment one tick
+    (`setTimeout(..., 0)`), a standard idiom for this exact class of bug.
+  - Verified live (not just by test) that the dropdown now renders fully
+    unclipped for a bottom-of-scroll row, with all three items reachable.
+- 1 new page test asserting the scroll container is present.
+
+**c. Course subgrid (View Details / Add Signatory step 2): scrollable, at
+most 5 rows.** Same scroll pattern applied to the shared `CourseSubgrid.tsx`
+(affects both call sites identically, since both share the same 5-slot cap).
+New `CourseSubgrid.test.tsx` proves rows beyond 5 still render (scrolls,
+doesn't truncate data) - the 5-slot business rule means this rarely
+triggers with real data, so the test uses more than 5 rows directly to
+prove the component itself handles it.
+
+**d. `nmc_practicetype1` data load.** The requester added
+`nmc_practicetype1` values to `requirement_doc/sample_data/masterapplicants.csv`
+(mirrors each row's `nmc_registerpart1`, previously blank for every row).
+- Synced the source CSV into `backend/app/seed_data/masterapplicants.csv`.
+- The dev database already had all 24 rows seeded plus 6 real
+  `audit_records` from the Phase 4 manual test session - idempotent
+  reseeding wouldn't have picked up the change anyway, and a wipe would
+  have destroyed that audit history. Instead ran a one-off, ephemeral
+  Python script (not committed - a one-shot data load doesn't need a
+  permanent script file, consistent with this repo's approach to one-off
+  tasks) that updated only `nmc_practicetype1` on the 24 existing rows to
+  match the CSV, verified via `sqlite3` before/after that `audit_records`
+  and any in-progress course changes were untouched.
+- Updated one existing test (`test_list_signatory_approved_course_title_and_tags`)
+  that asserted `practice_types == []` for `26H0401Z` - now `["Nursing"]`.
+
+**Verification (all four changes):** `cd backend && uv run pytest` -
+**101/101 pass**. `cd frontend && npm run lint` - clean; `npm test` -
+**92/92 pass** (18 files); `npm run build` - clean. Live Playwright
+walkthrough of all three UI-facing changes (a, b) against the real backend,
+screenshots confirmed each behaves exactly as specified, including the
+dropdown-clipping fix described above.
+
+**Manual test: complete (2026-08-29)** - requester ran Phase 4 plus all four
+changes and confirmed no bugs.
+
 ### Phase 5 - System Testing & Validation
 Manual, diagram-by-diagram walkthrough plus automated coverage, mirroring the
 Upload module's Phase 6 approach:

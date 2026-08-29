@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import PageShell from "../../components/PageShell";
 import { primaryButtonClass } from "../../components/buttonStyles";
-import { matchSignatory } from "../mockData";
+import { matchSignatory } from "../../lib/api";
 
 // AuthorisedSignatories_AddNewSignatories1.png's exact wording for the
 // mismatch message - requirements.md doesn't specify one, so this diagram is
@@ -16,15 +16,21 @@ export default function AddSignatoryPage() {
   const [pin, setPin] = useState("");
   const [surname, setSurname] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  function handleSubmit() {
-    const match = matchSignatory(pin, surname);
-    if (!match) {
+  async function handleSubmit() {
+    setSubmitting(true);
+    try {
+      const match = await matchSignatory(pin, surname);
+      setError(null);
+      router.push(`/authorised-signatories/add-signatory/detail?pin=${encodeURIComponent(match.nmc_pin)}`);
+    } catch {
+      // 404 = no active applicant matches this PIN + surname combination
+      // (backend/app/services/signatories.py's match_applicant).
       setError(MISMATCH_MESSAGE);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-    setError(null);
-    router.push(`/authorised-signatories/add-signatory/detail?pin=${encodeURIComponent(match.nmc_pin)}`);
   }
 
   return (
@@ -59,7 +65,7 @@ export default function AddSignatoryPage() {
       {error && <p className="mb-6 text-sm text-brand-error">{error}</p>}
 
       <div className="flex gap-3">
-        <button type="button" className={primaryButtonClass} onClick={handleSubmit}>
+        <button type="button" className={primaryButtonClass} disabled={submitting} onClick={handleSubmit}>
           Submit
         </button>
         <button
