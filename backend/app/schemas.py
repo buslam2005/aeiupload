@@ -99,6 +99,77 @@ class ResubmitWithProgrammeRequest(BaseModel):
     nmc_academicroute: str
 
 
+class CourseChoiceOut(BaseModel):
+    nmc_programmename: str
+    nmc_trainingtype: str
+    nmc_programme: str
+    nmc_academicroute: str
+    nmc_qualificationlevel: str
+    nmc_qualificationlevelname: str
+
+
+class SignatoryListItemOut(BaseModel):
+    nmc_pin: str
+    nmc_lastname: str
+    nmc_firstname: str
+    approved_course_title: str
+    register_parts: list[str]
+    practice_types: list[str]
+    nmc_regexpirydate: str
+    nmc_createdon: str
+    nmc_addedby: str
+    nmc_active: str
+
+
+class CourseRowOut(BaseModel):
+    slot: int
+    nmc_trainingtypecode: str
+    nmc_programmecode: str
+    nmc_academiclevel: str
+    nmc_qualificationroute: str
+    nmc_institutename: str
+    nmc_aeiprogrammetitle: str | None
+
+
+class SignatoryDetailOut(BaseModel):
+    nmc_pin: str
+    nmc_lastname: str
+    nmc_firstname: str
+    nmc_regexpirydate: str
+    nmc_addedby: str
+    nmc_createdon: str
+    nmc_institutecode: str
+    nmc_institutename: str
+    nmc_active: str
+    register_parts: list[str]
+    practice_types: list[str]
+    courses: list[CourseRowOut]
+
+
+class AddCourseRequest(BaseModel):
+    nmc_trainingtype: str
+    nmc_programme: str
+    nmc_academicroute: str
+    nmc_qualificationlevel: str
+
+
+class MatchRequest(BaseModel):
+    nmc_pin: str
+    nmc_lastname: str
+
+
+class AuditRecordOut(BaseModel):
+    id: int
+    nmc_pin: str
+    nmc_lastname: str
+    nmc_firstname: str
+    nmc_modifiedon: str
+    nmc_attributechanged: str
+    nmc_previousvalue: str | None
+    nmc_newvalue: str | None
+    nmc_addedby: str
+
+
 class ResubmitFullRequest(BaseModel):
     nmc_nmcpin: str | None = None
     nmc_nmctitlename: str | None = None

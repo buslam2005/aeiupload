@@ -45,6 +45,49 @@ def list_programme_titles(session: Session, institute_code: str) -> list[Program
     return sorted(seen.values(), key=lambda p: p.nmc_aeiprogrammetitle)
 
 
+def list_course_choices(session: Session, institute_code: str) -> list[Programme]:
+    """Every programmes row for an institute, one per distinct qualification
+    level (unlike list_programme_choices, this does NOT collapse qualification
+    levels) - the Course Lookup Records pop-up must offer each qualification
+    level as its own selectable row, since Add Course needs it to disambiguate
+    AEI Programme Title (see resolve_course_title).
+    """
+    rows = session.exec(
+        select(Programme).where(Programme.nmc_traininginstitutecode == institute_code)
+    ).all()
+    return sorted(rows, key=lambda p: (p.nmc_trainingtype, p.nmc_programme, p.nmc_qualificationlevel))
+
+
+def resolve_course_title(
+    session: Session,
+    institute_code: str,
+    trainingtype: str,
+    programme: str,
+    academicroute: str,
+    qualificationlevel: str,
+) -> str | None:
+    """AEI Programme Title for one master_applicants course slot, resolved at
+    display time (see developmentplan_AS.md's course-subgrid assumption).
+
+    Includes qualificationlevel in the match, not just institute/trainingtype/
+    programme/academicroute: institute 1315's own seed data has pairs sharing
+    the first 3 (e.g. SC1/B Nurs (Hons) has an Apprenticeship and a Full Time
+    row) with different nmc_aeiprogrammetitle values, so dropping
+    qualificationlevel would make the match ambiguous and pick whichever row
+    happens to load first.
+    """
+    row = session.exec(
+        select(Programme).where(
+            Programme.nmc_traininginstitutecode == institute_code,
+            Programme.nmc_trainingtype == trainingtype,
+            Programme.nmc_programme == programme,
+            Programme.nmc_academicroute == academicroute,
+            Programme.nmc_qualificationlevel == qualificationlevel,
+        )
+    ).first()
+    return row.nmc_aeiprogrammetitle if row else None
+
+
 def resolve_programme_name(
     session: Session,
     institute_code: str | None,
