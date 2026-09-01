@@ -41,7 +41,9 @@ def test_list_signatory_approved_course_title_and_tags(client):
     resp = client.get("/api/signatories", params={"active": "Yes"})
     row = next(r for r in resp.json() if r["nmc_pin"] == "26H0401Z")
     assert row["approved_course_title"] == "RAN1"
-    assert row["register_parts"] == ["Nursing", "Nursing", "Nursing"]
+    # nmc_registerpart1-3 are all "Nursing" in the seed data - register_parts()
+    # dedupes so the grid shows one "Nursing" line, not three.
+    assert row["register_parts"] == ["Nursing"]
     # nmc_practicetype1 was populated (2026-08-29 data update) - mirrors
     # nmc_registerpart1 in the seed data; practicetype2/3 are still blank.
     assert row["practice_types"] == ["Nursing"]

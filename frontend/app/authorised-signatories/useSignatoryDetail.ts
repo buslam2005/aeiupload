@@ -24,13 +24,19 @@ export function useSignatoryDetail(pin: string) {
     }
   }, [instituteCode]);
 
-  async function addCourse(choice: CourseChoice) {
-    setDetail(await apiAddCourse(pin, choice));
+  // Adds each choice in turn - the Course Lookup pop-up allows selecting up
+  // to 3 at once, but the backend endpoint takes one course per call. Each
+  // call commits server-side, so a failure partway through (e.g. capacity)
+  // still leaves the earlier successful adds in place and reflected here.
+  async function addCourses(choicesToAdd: CourseChoice[]) {
+    for (const choice of choicesToAdd) {
+      setDetail(await apiAddCourse(pin, choice));
+    }
   }
 
   async function removeCourse(slot: number) {
     setDetail(await apiRemoveCourse(pin, slot));
   }
 
-  return { detail, choices, addCourse, removeCourse };
+  return { detail, choices, addCourses, removeCourse };
 }

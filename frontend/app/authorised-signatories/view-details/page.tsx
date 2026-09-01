@@ -14,7 +14,7 @@ function ViewDetailsContent() {
   const searchParams = useSearchParams();
   const pin = searchParams.get("pin") ?? "";
 
-  const { detail, choices, addCourse, removeCourse } = useSignatoryDetail(pin);
+  const { detail, choices, addCourses, removeCourse } = useSignatoryDetail(pin);
   const [modalOpen, setModalOpen] = useState(false);
 
   if (detail === undefined) {
@@ -59,7 +59,7 @@ function ViewDetailsContent() {
         </button>
       </div>
 
-      <CourseLookupModal open={modalOpen} choices={choices} onAdd={addCourse} onClose={() => setModalOpen(false)} />
+      <CourseLookupModal open={modalOpen} choices={choices} onAdd={addCourses} onClose={() => setModalOpen(false)} />
     </PageShell>
   );
 }

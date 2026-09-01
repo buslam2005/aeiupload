@@ -739,6 +739,95 @@ already had rows).
 Signatory module (`developmentplan_AS.md`) are now complete and manually
 verified.
 
+#### Post-Phase-6 changes (requested 2026-09-01, after Phase 6 sign-off)
+
+**a. Duplicate Practice Type / Register Part values in the First Page
+subgrid and View Details tags.** Reported by the requester from a live
+screenshot (`AuthorisedSignatoriesFirstPage.png`-style grid): a row could
+show `Nursing` / `Nursing` / `Nursing` under Register Part instead of a
+single `Nursing`, or `SCPHN` / `Nursing` / `Nursing` instead of `SCPHN` /
+`Nursing`.
+- **Root cause (proved, not guessed):** `register_parts()`/`practice_types()`
+  in `backend/app/services/signatories.py` concatenated
+  `nmc_registerpart1-3`/`nmc_practicetype1-3` verbatim, with no
+  deduplication. Confirmed directly against
+  `backend/app/seed_data/masterapplicants.csv` - e.g. PIN `26H0401Z` has
+  `nmc_registerpart1/2/3` all `Nursing`; PIN `26H0404Z` has `SCPHN` /
+  `Nursing` / `Nursing`. Each course slot resolves its own register
+  part/practice type independently, so two slots legitimately landing on
+  the same value is expected seed/real data - the display layer was the
+  gap, not the data.
+- Fix: added a shared `_unique()` helper (drops empty values, dedupes
+  preserving first-seen order) used by both `register_parts()` and
+  `practice_types()`. Both the First Page subgrid (`LinesList` in
+  `authorised-signatories/page.tsx`) and the View Details tag chips
+  (`TagList.tsx`) read from these same two functions via the API response,
+  so one backend change fixed both surfaces.
+- Updated `test_list_signatory_approved_course_title_and_tags` (previously
+  asserted `register_parts == ["Nursing", "Nursing", "Nursing"]` for
+  `26H0401Z`) to expect the deduped `["Nursing"]`.
+
+**Verification:** `cd backend && uv run pytest` - **101/101 pass**. `cd
+frontend && npm test` - **92/92 pass** (no test changes needed there - the
+frontend tests mock already-shaped API data). Live Playwright walkthrough
+against the real backend/build on `localhost:8008`: First Page grid for
+PIN `26H0404Z` now shows Register Part as `SCPHN` / `Nursing` (was `SCPHN`
+/ `Nursing` / `Nursing`); View Details tag chips for the same PIN show the
+same two deduped tags, not three.
+
+**Manual test: complete (2026-09-01)** - requester confirmed the fix live,
+test results positive.
+
+**b. Course Lookup pop-up: multi-select, up to 3 courses per Add.**
+Requested by the requester to replace the single-select behaviour recorded
+in `developmentplan_AS.md`'s Requirement Clarifications item 5 and
+Assumptions section (both dated 2026-08-28) - those entries are left as
+written since they're a frozen record of the original decision, not a
+living spec; this change supersedes that decision going forward and is
+recorded here instead, consistent with how Post-Phase-4's changes were
+logged.
+- `frontend/app/components/CourseLookupModal.tsx` - `selectedKey: string |
+  null` replaced with `selectedKeys: string[]`, capped at a new
+  `MAX_SELECTION = 3` constant. Checking a new row while already at 3 no
+  longer displaces a previous selection - the remaining unchecked rows'
+  checkboxes simply disable until one is unchecked. Added a "Select (max
+  3)" header and a live "`x of 3 selected`" counter beside Add. Checkbox
+  markup was already `type="checkbox"` (square) even under the old
+  single-select behaviour, so no visual change was needed there - only the
+  selection logic changed.
+- `onAdd` prop changed from `(choice: CourseChoice) => Promise<void>` to
+  `(choices: CourseChoice[]) => Promise<void>`.
+- `frontend/app/authorised-signatories/useSignatoryDetail.ts` - `addCourse`
+  renamed `addCourses`, now loops the existing single-course
+  `POST /signatories/{pin}/courses` endpoint once per selected choice, in
+  sequence. **No backend change was needed or made** - the endpoint already
+  commits and writes its own audit row per call, so a failure partway
+  through a batch (duplicate-course or capacity rejection) leaves the
+  earlier successful adds in place rather than losing them; the modal
+  surfaces the same error message as before and stays open with the
+  remaining selection.
+- `view-details/page.tsx` and `add-signatory/detail/page.tsx` updated to
+  pass `addCourses` instead of `addCourse`.
+- `CourseLookupModal.test.tsx` - rewrote the single-select assertions as
+  multi-select ones and added a new test proving the 4th checkbox disables
+  once 3 are checked, and re-enables once one is unchecked.
+
+**Verification:** `cd backend && uv run pytest` - **101/101 pass**
+(unchanged - no backend code touched). `cd frontend && npm run lint` -
+clean; `npm test` - **93/93 pass** (18 files, +1 new test); `npm run build`
+- clean. Live Playwright walkthrough against the real backend on
+`localhost:8008`, PIN `26H0401Z` (started with 1 course): opened Add
+Courses, checked 3 rows - the other rows' checkboxes visibly disabled,
+counter read "3 of 3 selected" - clicked Add once, and the course subgrid
+grew from 1 to 4 rows in one action. Cross-checked via
+`GET /api/signatories/26H0401Z` (all 4 course slots populated correctly)
+and `GET /api/signatories/26H0401Z/audit` (3 separate "Approved Course"
+entries, one per added course, proving each Add call still commits and
+audits individually rather than as a single batched write).
+
+**Manual test: complete (2026-09-01)** - requester confirmed the fix live,
+test results positive.
+
 ## Branching
 
 Per this repo's established workflow, branch fresh off `origin/main` before Phase 1

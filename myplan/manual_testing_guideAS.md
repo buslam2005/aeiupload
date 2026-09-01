@@ -266,3 +266,52 @@ Formal full pass, plus edge cases not necessarily hit above:
   `master_applicants` reloads to 24 rows (16/8 active/inactive) and
   `audit_records` is empty again - proving the whole demo, both modules, resets
   cleanly before a live demonstration.
+
+## Post-Phase-6 changes (requested 2026-09-01, after Phase 6 sign-off)
+
+**a. Unique Practice Type / Register Part values.** Run the single-port app
+with a freshly reset DB (see section 0).
+
+1. On First Page (Active Signatories), find PIN `26H0404Z` (Mary 4 Young) -
+   Register Part column shows exactly `SCPHN` then `Nursing` on the next
+   line (two lines, not three - the seed CSV's `nmc_registerpart2`/`3` are
+   both `Nursing`, so the third would previously repeat).
+2. Find PIN `26H0401Z` (Mary 1 Young) - Register Part shows a single
+   `Nursing` line (seed CSV has all of `nmc_registerpart1/2/3` = `Nursing`
+   for this row - previously rendered as three stacked `Nursing` lines).
+3. Open View Details for `26H0404Z` - Register Part tag list shows exactly
+   two chips (`SCPHN`, `Nursing`), Practice Type shows one chip (`SCPHN`).
+4. `curl -s "http://localhost:8008/api/signatories?active=Yes" | python3 -m
+   json.tool` and spot-check that no row's `register_parts` or
+   `practice_types` array contains a repeated value.
+5. Confirm no legitimately different values were collapsed - a row whose
+   register parts genuinely differ (e.g. `SCPHN`/`Nursing`) must still show
+   both, just not doubled.
+
+**b. Course Lookup pop-up: multi-select, up to 3 courses per Add.**
+Supersedes the single-select checks in Phase 4 step 3 and Phase 5's "Course
+Lookup pop-up" bullet above - those describe the pop-up as it stood through
+Phase 6 sign-off, not its current behaviour. Use an applicant with at least
+3 remaining empty course slots, e.g. `26H0401Z` (Mary 1 Young, 1 of 5 slots
+used) freshly reset.
+
+1. View Details for `26H0401Z` -> Add Courses. Header reads "Select (max
+   3)"; footer reads "0 of 3 selected" and Add is disabled.
+2. Check 3 different rows (paging if needed) - all 3 stay checked
+   simultaneously (not single-select), counter reads "3 of 3 selected", Add
+   enables.
+3. Confirm every other (unchecked) row's checkbox is now disabled - you
+   cannot check a 4th.
+4. Uncheck one of the 3 - the previously-disabled rows become checkable
+   again.
+5. Re-check a 3rd row and click Add once - modal closes, the course subgrid
+   grows from 1 row to 4 rows in this single action (not one row at a
+   time).
+6. View Audits for the same PIN - confirm 3 separate new "Approved Course"
+   entries were written (one per course), not a single combined entry.
+7. Capacity edge: on an applicant with fewer than 3 empty slots remaining,
+   select 3 anyway and click Add - confirm courses that fit are added and
+   committed, and the rejection for the one that doesn't fit (still
+   `"All 5 course slots are already populated"`-style backend error)
+   renders under the pagination row without silently losing the ones that
+   already succeeded.

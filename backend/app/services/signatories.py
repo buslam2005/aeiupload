@@ -30,12 +30,23 @@ def first_empty_add_slot(applicant: MasterApplicant) -> int | None:
     return None
 
 
+def _unique(values: tuple[str | None, ...]) -> list[str]:
+    """Non-empty values, deduplicated, preserving first-seen order - a
+    signatory's course slots can independently resolve to the same register
+    part / practice type (e.g. two courses both under Nursing)."""
+    seen: list[str] = []
+    for v in values:
+        if v and v not in seen:
+            seen.append(v)
+    return seen
+
+
 def register_parts(applicant: MasterApplicant) -> list[str]:
-    return [v for v in (applicant.nmc_registerpart1, applicant.nmc_registerpart2, applicant.nmc_registerpart3) if v]
+    return _unique((applicant.nmc_registerpart1, applicant.nmc_registerpart2, applicant.nmc_registerpart3))
 
 
 def practice_types(applicant: MasterApplicant) -> list[str]:
-    return [v for v in (applicant.nmc_practicetype1, applicant.nmc_practicetype2, applicant.nmc_practicetype3) if v]
+    return _unique((applicant.nmc_practicetype1, applicant.nmc_practicetype2, applicant.nmc_practicetype3))
 
 
 def course_already_attained(
