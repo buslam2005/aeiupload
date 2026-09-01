@@ -21,6 +21,22 @@ const CHOICES: CourseChoice[] = [
     nmc_qualificationlevel: "F",
     nmc_qualificationlevelname: "Full Time",
   },
+  {
+    nmc_programmename: "Pre-registration nursing - Mental Health",
+    nmc_trainingtype: "R",
+    nmc_programme: "MH1",
+    nmc_academicroute: "B Nurs (Hons)",
+    nmc_qualificationlevel: "F",
+    nmc_qualificationlevelname: "Full Time",
+  },
+  {
+    nmc_programmename: "Pre-registration nursing - Learning Disability",
+    nmc_trainingtype: "R",
+    nmc_programme: "LD1",
+    nmc_academicroute: "B Nurs (Hons)",
+    nmc_qualificationlevel: "F",
+    nmc_qualificationlevelname: "Full Time",
+  },
 ];
 
 describe("CourseLookupModal", () => {
@@ -29,7 +45,7 @@ describe("CourseLookupModal", () => {
     expect(screen.queryByRole("heading", { name: "Lookup records" })).not.toBeInTheDocument();
   });
 
-  it("is single-select: checking a new row unchecks the previous one, and Add is disabled until a row is checked", async () => {
+  it("is multi-select: checking multiple rows keeps all of them checked, and Add is disabled until at least one is checked", async () => {
     const user = userEvent.setup();
     render(<CourseLookupModal open choices={CHOICES} onAdd={vi.fn()} onClose={vi.fn()} />);
 
@@ -45,19 +61,42 @@ describe("CourseLookupModal", () => {
 
     await user.click(childBox);
     expect(childBox).toBeChecked();
-    expect(adultBox).not.toBeChecked();
+    expect(adultBox).toBeChecked();
   });
 
-  it("calls onAdd with the checked choice and closes", async () => {
+  it("caps selection at 3: a 4th row's checkbox is disabled, and unchecking one re-enables selection", async () => {
+    const user = userEvent.setup();
+    render(<CourseLookupModal open choices={CHOICES} onAdd={vi.fn()} onClose={vi.fn()} />);
+
+    const adultBox = screen.getByRole("checkbox", { name: /Pre-registration nursing - Adult/ });
+    const childBox = screen.getByRole("checkbox", { name: /Pre-registration nursing - Child/ });
+    const mentalHealthBox = screen.getByRole("checkbox", { name: /Pre-registration nursing - Mental Health/ });
+    const learningDisabilityBox = screen.getByRole("checkbox", {
+      name: /Pre-registration nursing - Learning Disability/,
+    });
+
+    await user.click(adultBox);
+    await user.click(childBox);
+    await user.click(mentalHealthBox);
+    expect(screen.getByText("3 of 3 selected")).toBeInTheDocument();
+    expect(learningDisabilityBox).toBeDisabled();
+
+    await user.click(adultBox);
+    expect(adultBox).not.toBeChecked();
+    expect(learningDisabilityBox).toBeEnabled();
+  });
+
+  it("calls onAdd with all checked choices and closes", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(<CourseLookupModal open choices={CHOICES} onAdd={onAdd} onClose={onClose} />);
 
+    await user.click(screen.getByRole("checkbox", { name: /Pre-registration nursing - Adult/ }));
     await user.click(screen.getByRole("checkbox", { name: /Pre-registration nursing - Child/ }));
     await user.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(onAdd).toHaveBeenCalledWith(CHOICES[1]);
+    expect(onAdd).toHaveBeenCalledWith([CHOICES[0], CHOICES[1]]);
     expect(onClose).toHaveBeenCalled();
   });
 

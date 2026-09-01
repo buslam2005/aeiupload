@@ -8,9 +8,10 @@ import { SearchIcon } from "./icons";
 // Shared "Lookup records" pop-up (CourseLookupRecords.png), reused by View
 // Details and Add Signatory step 2. Institute-scoping is the caller's job
 // (it passes in only that institute's choices) - this component just renders
-// them, paginated, single-select.
+// them, paginated, multi-select up to MAX_SELECTION rows per Add.
 
 const PAGE_SIZE = 5;
+const MAX_SELECTION = 3;
 
 function choiceKey(choice: CourseChoice): string {
   return `${choice.nmc_trainingtype}|${choice.nmc_programme}|${choice.nmc_academicroute}|${choice.nmc_qualificationlevel}`;
@@ -19,7 +20,7 @@ function choiceKey(choice: CourseChoice): string {
 interface Props {
   open: boolean;
   choices: CourseChoice[];
-  onAdd: (choice: CourseChoice) => Promise<void>;
+  onAdd: (choices: CourseChoice[]) => Promise<void>;
   onClose: () => void;
 }
 
@@ -31,7 +32,7 @@ export default function CourseLookupModal({ open, choices, onAdd, onClose }: Pro
 }
 
 function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open">) {
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -39,16 +40,29 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
   const totalPages = Math.max(1, Math.ceil(choices.length / PAGE_SIZE));
   const pageChoices = choices.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
+  function toggleKey(key: string) {
+    setSelectedKeys((keys) =>
+      keys.includes(key)
+        ? keys.filter((k) => k !== key)
+        : keys.length < MAX_SELECTION
+          ? [...keys, key]
+          : keys
+    );
+  }
+
   async function handleAdd() {
-    const choice = choices.find((c) => choiceKey(c) === selectedKey);
-    if (!choice) return;
+    const selected = choices.filter((c) => selectedKeys.includes(choiceKey(c)));
+    if (selected.length === 0) return;
     setSubmitting(true);
     try {
-      await onAdd(choice);
+      await onAdd(selected);
       onClose();
     } catch (err) {
       // e.g. "The selected course was already attained." (409, duplicate
       // course) or a capacity rejection - backend/app/services/signatories.py.
+      // Courses before the failing one were already added (each Add call is
+      // committed server-side one at a time) - the modal stays open with the
+      // remaining selection so the requester can see what's left to retry.
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
@@ -91,7 +105,7 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
           <table className="w-full min-w-[700px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-brand-border bg-brand-header text-left text-white">
-                <th className="w-16 px-2 py-2 text-center">Select</th>
+                <th className="w-24 px-2 py-2 text-center">Select (max {MAX_SELECTION})</th>
                 <th className="px-2 py-2">Programme Title</th>
                 <th className="px-2 py-2">Training Type Code</th>
                 <th className="px-2 py-2">Programme Code</th>
@@ -102,14 +116,16 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
             <tbody>
               {pageChoices.map((choice) => {
                 const key = choiceKey(choice);
+                const checked = selectedKeys.includes(key);
                 return (
                   <tr key={key} className="border-b border-brand-border">
                     <td className="px-2 py-2 text-center">
                       <input
                         type="checkbox"
                         aria-label={`Select ${choice.nmc_programmename} - ${choice.nmc_qualificationlevelname}`}
-                        checked={selectedKey === key}
-                        onChange={() => setSelectedKey(selectedKey === key ? null : key)}
+                        checked={checked}
+                        disabled={!checked && selectedKeys.length >= MAX_SELECTION}
+                        onChange={() => toggleKey(key)}
                       />
                     </td>
                     <td className="px-2 py-2">{choice.nmc_programmename}</td>
@@ -147,11 +163,14 @@ function CourseLookupModalContent({ choices, onAdd, onClose }: Omit<Props, "open
               </button>
             ))}
           </div>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-brand-disabled-text">
+              {selectedKeys.length} of {MAX_SELECTION} selected
+            </span>
             <button
               type="button"
               className={primaryButtonClass}
-              disabled={!selectedKey || submitting}
+              disabled={selectedKeys.length === 0 || submitting}
               onClick={handleAdd}
             >
               Add
